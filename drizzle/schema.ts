@@ -1,15 +1,20 @@
-import { mysqlTable, varchar, text, timestamp, decimal, boolean, mysqlEnum } from "drizzle-orm/mysql-core";
+import { pgTable, varchar, text, timestamp, decimal, boolean, pgEnum } from "drizzle-orm/pg-core";
+
+/**
+ * Enums
+ */
+export const userRoleEnum = pgEnum("user_role", ["user", "admin"]);
 
 /**
  * Tabela de usuários - autenticação por código único
  */
-export const users = mysqlTable("users", {
+export const users = pgTable("users", {
   id: varchar("id", { length: 64 }).primaryKey(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
-  createdAt: timestamp("createdAt", { mode: 'date' }).defaultNow(),
-  lastSignedIn: timestamp("lastSignedIn", { mode: 'date' }).defaultNow(),
+  role: userRoleEnum("role").default("user").notNull(),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
+  lastSignedIn: timestamp("last_signed_in", { mode: 'date', withTimezone: true }).defaultNow(),
 });
 
 export type User = typeof users.$inferSelect;
@@ -18,21 +23,21 @@ export type InsertUser = typeof users.$inferInsert;
 /**
  * Tabela de códigos de acesso para autenticação
  */
-export const accessCodes = mysqlTable("access_codes", {
+export const accessCodes = pgTable("access_codes", {
   id: varchar("id", { length: 64 }).primaryKey(),
   code: varchar("code", { length: 20 }).notNull().unique(),
-  companyId: varchar("companyId", { length: 64 }).notNull(),
-  createdBy: varchar("createdBy", { length: 64 }).notNull(),
-  createdAt: timestamp("createdAt", { mode: 'date' }).defaultNow(),
-  expiresAt: timestamp("expiresAt", { mode: 'date' }),
-  usedAt: timestamp("usedAt", { mode: 'date' }),
-  usedBy: varchar("usedBy", { length: 64 }),
-  isActive: boolean("isActive").default(true).notNull(),
-  isReusable: boolean("isReusable").default(false).notNull(),
+  companyId: varchar("company_id", { length: 64 }).notNull(),
+  createdBy: varchar("created_by", { length: 64 }).notNull(),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
+  expiresAt: timestamp("expires_at", { mode: 'date', withTimezone: true }),
+  usedAt: timestamp("used_at", { mode: 'date', withTimezone: true }),
+  usedBy: varchar("used_by", { length: 64 }),
+  isActive: boolean("is_active").default(true).notNull(),
+  isReusable: boolean("is_reusable").default(false).notNull(),
   description: text("description"),
-  userName: varchar("userName", { length: 255 }),
-  userEmail: varchar("userEmail", { length: 320 }),
-  userPhone: varchar("userPhone", { length: 20 }),
+  userName: varchar("user_name", { length: 255 }),
+  userEmail: varchar("user_email", { length: 320 }),
+  userPhone: varchar("user_phone", { length: 20 }),
 });
 
 export type AccessCode = typeof accessCodes.$inferSelect;
@@ -41,16 +46,16 @@ export type InsertAccessCode = typeof accessCodes.$inferInsert;
 /**
  * Tabela de funcionários
  */
-export const employees = mysqlTable("employees", {
+export const employees = pgTable("employees", {
   id: varchar("id", { length: 64 }).primaryKey(),
-  companyId: varchar("companyId", { length: 64 }).notNull(),
+  companyId: varchar("company_id", { length: 64 }).notNull(),
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
   position: varchar("position", { length: 255 }),
-  isActive: boolean("isActive").default(true).notNull(),
-  createdAt: timestamp("createdAt", { mode: 'date' }).defaultNow(),
-  updatedAt: timestamp("updatedAt", { mode: 'date' }).defaultNow().onUpdateNow(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
 });
 
 export type Employee = typeof employees.$inferSelect;
@@ -59,14 +64,14 @@ export type InsertEmployee = typeof employees.$inferInsert;
 /**
  * Tabela de vendas diárias
  */
-export const dailySales = mysqlTable("daily_sales", {
+export const dailySales = pgTable("daily_sales", {
   id: varchar("id", { length: 64 }).primaryKey(),
-  employeeId: varchar("employeeId", { length: 64 }).notNull(),
-  companyId: varchar("companyId", { length: 64 }).notNull(),
+  employeeId: varchar("employee_id", { length: 64 }).notNull(),
+  companyId: varchar("company_id", { length: 64 }).notNull(),
   date: varchar("date", { length: 10 }).notNull(), // YYYY-MM-DD format
   amount: decimal("amount", { precision: 10, scale: 2 }).notNull(),
-  createdAt: timestamp("createdAt", { mode: 'date' }).defaultNow(),
-  updatedAt: timestamp("updatedAt", { mode: 'date' }).defaultNow().onUpdateNow(),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
+  updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
 });
 
 export type DailySale = typeof dailySales.$inferSelect;
