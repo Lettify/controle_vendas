@@ -9,8 +9,7 @@
   ],
   "functions": {
     "api/trpc/[trpc].ts": {
-      "maxDuration": 10,
-      "includeFiles": "server/**"
+      "maxDuration": 10
     }
   },
   "regions": ["gru1"]
