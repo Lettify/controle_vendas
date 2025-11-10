@@ -16,6 +16,10 @@
     "moduleResolution": "bundler",
     "noEmit": true,
     "allowImportingTsExtensions": true,
+    "paths": {
+      "@/*": ["./client/src/*"],
+      "@shared/*": ["./shared/*"]
+    }
   },
   "include": ["client/src", "server", "shared", "drizzle", "vite-env.d.ts"],
   "types": ["vite/client"],
