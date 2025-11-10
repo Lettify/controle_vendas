@@ -5,6 +5,10 @@
     {
       "source": "/api/trpc/:trpc*",
       "destination": "/api/trpc/[trpc]"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ],
   "functions": {
