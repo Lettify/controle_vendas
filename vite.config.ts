@@ -11,6 +11,16 @@ export default defineConfig({
       "@shared": path.resolve(__dirname, "./shared"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom'],
+          'trpc-vendor': ['@trpc/client', '@trpc/react-query'],
+        },
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

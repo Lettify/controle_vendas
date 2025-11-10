@@ -19,7 +19,10 @@ export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
       _client = postgres(process.env.DATABASE_URL, { 
-        max: 10,
+        max: 1, // Reduzido para serverless
+        idle_timeout: 20, // Fecha conexões ociosas após 20s
+        connect_timeout: 10, // Timeout de conexão de 10s
+        prepare: false, // Desabilita prepared statements (requerido para serverless)
         onnotice: () => {} // Silencia avisos do Supabase
       });
       _db = drizzle(_client);

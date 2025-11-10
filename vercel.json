@@ -1,3 +1,9 @@
 {
-"outputDirectory": "client/dist"
+  "outputDirectory": "client/dist",
+  "functions": {
+    "server/index.ts": {
+      "maxDuration": 10
+    }
+  },
+  "regions": ["gru1"]
 }
