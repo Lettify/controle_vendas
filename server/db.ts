@@ -18,7 +18,10 @@ let _client: ReturnType<typeof postgres> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _client = postgres(process.env.DATABASE_URL, { max: 10 });
+      _client = postgres(process.env.DATABASE_URL, { 
+        max: 10,
+        onnotice: () => {} // Silencia avisos do Supabase
+      });
       _db = drizzle(_client);
     } catch (error) {
       console.warn("[Database] Failed to connect:", error);

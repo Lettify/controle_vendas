@@ -437,7 +437,23 @@ export default function EmployeeDetails() {
                 R$ {totalSales.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-emerald-50 text-xs font-semibold">
-                {selectedDate ? '📅 Dia selecionado' : `📊 ${monthNames[selectedMonth - 1]}/${selectedYear}`}
+                <div className="flex items-center gap-2">
+                  {selectedDate ? (
+                    <>
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                      </svg>
+                      Dia selecionado
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                      </svg>
+                      {`${monthNames[selectedMonth - 1]}/${selectedYear}`}
+                    </>
+                  )}
+                </div>
               </p>
             </CardContent>
           </Card>
@@ -456,7 +472,21 @@ export default function EmployeeDetails() {
               <p className="text-blue-50 text-sm font-bold mb-1 uppercase tracking-wide">Quantidade</p>
               <p className="text-3xl font-black mb-2">{salesCount}</p>
               <p className="text-blue-50 text-xs font-semibold">
-                {salesCount === 0 ? 'Nenhuma venda' : salesCount === 1 ? '🎯 1 venda registrada' : `🎯 ${salesCount} vendas registradas`}
+                {salesCount === 0 ? 'Nenhuma venda' : salesCount === 1 ? (
+                  <span className="flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                    </svg>
+                    1 venda registrada
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                    </svg>
+                    {`${salesCount} vendas registradas`}
+                  </span>
+                )}
               </p>
             </CardContent>
           </Card>
@@ -477,7 +507,23 @@ export default function EmployeeDetails() {
                 R$ {avgSale.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-purple-50 text-xs font-semibold">
-                {salesCount > 0 ? '📈 Média por venda' : '➖ Sem vendas'}
+                <div className="flex items-center gap-1.5">
+                  {salesCount > 0 ? (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd"/>
+                      </svg>
+                      Média por venda
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M3 10a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd"/>
+                      </svg>
+                      Sem vendas
+                    </>
+                  )}
+                </div>
               </p>
             </CardContent>
           </Card>

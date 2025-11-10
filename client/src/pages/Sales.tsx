@@ -206,15 +206,15 @@ export default function Sales() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
-      <Navbar title="Registrar Vendas" />
+      <Navbar title="Registrar Vendas" showUserInfo={true} />
 
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
         {/* Seções de Operação - Nova Venda e Últimas Vendas */}
         <div className="flex justify-center mb-4">
           <div className="grid grid-cols-1 lg:grid-cols-[450px_480px] gap-4">
           {/* Formulário de Nova Venda */}
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-t-xl relative overflow-hidden">
+          <Card className="border-0 shadow-xl rounded-xl overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white relative overflow-hidden">
               {/* Decorative elements */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
@@ -506,8 +506,8 @@ export default function Sales() {
           </Card>
 
           {/* Timeline de Vendas Recentes */}
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-t-xl relative overflow-hidden">
+          <Card className="border-0 shadow-xl rounded-xl overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white relative overflow-hidden">
               {/* Decorative elements */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
@@ -605,8 +605,8 @@ export default function Sales() {
         <div className="flex justify-center">
           <div className="w-full max-w-[930px]">
           {/* Ranking de Vendas por Funcionário */}
-          <Card className="border-0 shadow-xl">
-            <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-t-xl relative overflow-hidden py-3 px-4">
+          <Card className="border-0 shadow-xl rounded-xl overflow-hidden">
+            <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white relative overflow-hidden py-3 px-4">
               {/* Decorative background elements */}
               <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
               <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
@@ -668,14 +668,28 @@ export default function Sales() {
                       >
                         <div className="p-2.5">
                           <div className="flex items-center gap-2.5">
-                            {/* Position Badge - Minimalista */}
+                            {/* Position Badge - Com ícones SVG */}
                             <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base ${
                               index === 0 ? 'bg-yellow-400 text-yellow-900' :
                               index === 1 ? 'bg-gray-400 text-gray-900' :
                               index === 2 ? 'bg-orange-400 text-orange-900' :
                               'bg-emerald-500 text-white'
                             }`}>
-                              {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : index + 1}
+                              {index === 0 ? (
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                </svg>
+                              ) : index === 1 ? (
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                </svg>
+                              ) : index === 2 ? (
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                                </svg>
+                              ) : (
+                                index + 1
+                              )}
                             </div>
                             
                             {/* Employee Info - Compacto */}

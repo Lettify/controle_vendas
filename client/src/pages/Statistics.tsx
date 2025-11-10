@@ -165,8 +165,8 @@ export default function Statistics() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filtros Modernos */}
-        <Card className="mb-8 border-0 shadow-xl bg-white/80 backdrop-blur">
-          <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-t-xl">
+        <Card className="mb-8 border-0 shadow-xl bg-white/80 backdrop-blur rounded-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
@@ -297,7 +297,13 @@ export default function Statistics() {
               <p className="text-3xl font-black mb-2">
                 R$ {(totalQuery.data || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
-              <p className="text-emerald-50 text-xs font-semibold">💰 Receita do período</p>
+              <p className="text-emerald-50 text-xs font-semibold flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
+                </svg>
+                Receita do período
+              </p>
             </CardContent>
           </Card>
 
@@ -314,7 +320,12 @@ export default function Statistics() {
               </div>
               <p className="text-blue-50 text-sm font-bold mb-1 uppercase tracking-wide">Vendas</p>
               <p className="text-3xl font-black mb-2">{totalSales}</p>
-              <p className="text-blue-50 text-xs font-semibold">📊 Transações realizadas</p>
+              <p className="text-blue-50 text-xs font-semibold flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+                </svg>
+                Transações realizadas
+              </p>
             </CardContent>
           </Card>
 
@@ -331,7 +342,12 @@ export default function Statistics() {
               </div>
               <p className="text-purple-50 text-sm font-bold mb-1 uppercase tracking-wide">Funcionários</p>
               <p className="text-3xl font-black mb-2">{activeEmployees}</p>
-              <p className="text-purple-50 text-xs font-semibold">👥 Com vendas ativas</p>
+              <p className="text-purple-50 text-xs font-semibold flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+                </svg>
+                Com vendas ativas
+              </p>
             </CardContent>
           </Card>
 
@@ -350,14 +366,19 @@ export default function Statistics() {
               <p className="text-3xl font-black mb-2">
                 R$ {averagePerEmployee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
-              <p className="text-orange-50 text-xs font-semibold">📈 Performance média</p>
+              <p className="text-orange-50 text-xs font-semibold flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd"/>
+                </svg>
+                Performance média
+              </p>
             </CardContent>
           </Card>
         </div>
 
         {/* Ranking de Funcionários */}
-        <Card className="border-0 shadow-xl bg-white">
-          <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-b-0 rounded-t-xl">
+        <Card className="border-0 shadow-xl bg-white rounded-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-b-0">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <CardTitle className="flex items-center gap-3">
                 <div className="w-11 h-11 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
@@ -597,8 +618,8 @@ export default function Statistics() {
         </Card>
 
         {/* Seção de Relatório Diário */}
-        <Card className="mt-8 border-0 shadow-xl bg-white/90 backdrop-blur">
-          <CardHeader className="bg-gradient-to-r from-pink-500 to-rose-500 text-white rounded-t-xl">
+        <Card className="mt-8 border-0 shadow-xl bg-white/90 backdrop-blur rounded-xl overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-pink-500 to-rose-500 text-white">
             <CardTitle className="flex items-center gap-3">
               <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
