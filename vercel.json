@@ -1,7 +1,14 @@
 {
+  "buildCommand": "npm run build",
   "outputDirectory": "client/dist",
+  "rewrites": [
+    {
+      "source": "/api/trpc/:path*",
+      "destination": "/api/trpc/[trpc]"
+    }
+  ],
   "functions": {
-    "server/index.ts": {
+    "api/trpc/[trpc].ts": {
       "maxDuration": 10
     }
   },
