@@ -50,15 +50,27 @@ export default function App() {
       },
     },
   }));
-  const [trpcClient] = useState(() =>
-    trpc.createClient({
+  const [trpcClient] = useState(() => {
+    // Detectar URL da API baseado no ambiente
+    const getApiUrl = () => {
+      // Se VITE_API_URL está definido, usar ele
+      if (import.meta.env.VITE_API_URL) {
+        return `${import.meta.env.VITE_API_URL}/trpc`;
+      }
+      
+      // Em produção, usar o próprio domínio
+      if (import.meta.env.PROD) {
+        return `${window.location.origin}/api/trpc`;
+      }
+      
+      // Em desenvolvimento, usar localhost
+      return "http://localhost:3000/trpc";
+    };
+
+    return trpc.createClient({
       links: [
         httpLink({
-          url: import.meta.env.VITE_API_URL 
-            ? `${import.meta.env.VITE_API_URL}/trpc`
-            : import.meta.env.PROD 
-              ? "/api/trpc"
-              : "http://localhost:3000/trpc",
+          url: getApiUrl(),
           fetch(url, options) {
             return fetch(url, {
               ...options,
@@ -67,8 +79,8 @@ export default function App() {
           },
         }),
       ],
-    })
-  );
+    });
+  });
 
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>

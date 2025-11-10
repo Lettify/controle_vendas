@@ -8,7 +8,8 @@ export const config = {
 };
 
 export default async function handler(req: Request) {
-  return fetchRequestHandler({
+  // Adicionar CORS headers
+  const response = await fetchRequestHandler({
     endpoint: "/api/trpc",
     req,
     router: appRouter,
@@ -24,12 +25,17 @@ export default async function handler(req: Request) {
         }
       });
 
+      // Extrair informações da URL para mock do request
+      const url = new URL(opts.req.url);
+
       // Mock de req/res compatível com Express
       const mockReq = {
         cookies,
         headers: Object.fromEntries(opts.req.headers),
         method: opts.req.method,
         url: opts.req.url,
+        protocol: url.protocol.replace(":", ""),
+        hostname: url.hostname,
       } as any;
 
       const mockRes = {
@@ -52,5 +58,23 @@ export default async function handler(req: Request) {
         res: mockRes,
       });
     },
+  });
+
+  // Adicionar CORS headers na resposta
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.set("Access-Control-Allow-Origin", req.headers.get("origin") || "*");
+  headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response(null, { status: 200, headers });
+  }
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
   });
 }

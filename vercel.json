@@ -3,7 +3,7 @@
   "outputDirectory": "client/dist",
   "rewrites": [
     {
-      "source": "/api/trpc/:path*",
+      "source": "/api/trpc/:trpc*",
       "destination": "/api/trpc/[trpc]"
     }
   ],
