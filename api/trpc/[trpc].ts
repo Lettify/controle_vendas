@@ -7,24 +7,38 @@ export const config = {
   maxDuration: 10,
 };
 
-export default async function handler(req: Request) {
+export default async function handler(req: any, res: any) {
   try {
+    // Converter request do Vercel para Fetch API Request
+    const protocol = req.headers["x-forwarded-proto"] || "https";
+    const host = req.headers["x-forwarded-host"] || req.headers.host;
+    const url = `${protocol}://${host}${req.url}`;
+
     // Handle preflight requests
     if (req.method === "OPTIONS") {
-      return new Response(null, {
-        status: 200,
-        headers: {
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Allow-Origin": req.headers.get("origin") || "*",
-          "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        },
-      });
+      res.status(200).setHeader("Access-Control-Allow-Credentials", "true");
+      res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+      res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      return res.end();
     }
+
+    // Criar Headers compatível com Fetch API
+    const headers = new Headers();
+    Object.entries(req.headers).forEach(([key, value]) => {
+      if (value) headers.set(key, Array.isArray(value) ? value[0] : value as string);
+    });
+
+    // Criar Request compatível com Fetch API
+    const fetchRequest = new Request(url, {
+      method: req.method,
+      headers,
+      body: req.method !== "GET" && req.method !== "HEAD" ? JSON.stringify(req.body) : undefined,
+    });
 
     const response = await fetchRequestHandler({
       endpoint: "/api/trpc",
-      req,
+      req: fetchRequest,
       router: appRouter,
       createContext: async (opts) => {
         try {
@@ -40,7 +54,7 @@ export default async function handler(req: Request) {
           });
 
           // Extrair informações da URL para mock do request
-          const url = new URL(opts.req.url);
+          const reqUrl = new URL(opts.req.url);
 
           // Mock de req/res compatível com Express
           const mockReq = {
@@ -48,8 +62,8 @@ export default async function handler(req: Request) {
             headers: Object.fromEntries(opts.req.headers),
             method: opts.req.method,
             url: opts.req.url,
-            protocol: url.protocol.replace(":", ""),
-            hostname: url.hostname,
+            protocol: reqUrl.protocol.replace(":", ""),
+            hostname: reqUrl.hostname,
           } as any;
 
           const mockRes = {
@@ -63,6 +77,12 @@ export default async function handler(req: Request) {
               if (options?.sameSite) cookieStr += `; SameSite=${options.sameSite}`;
               if (options?.maxAge) cookieStr += `; Max-Age=${options.maxAge}`;
               if (options?.path) cookieStr += `; Path=${options.path}`;
+              opts.resHeaders.append("Set-Cookie", cookieStr);
+            },
+            clearCookie: (name: string, options?: any) => {
+              let cookieStr = `${name}=; Max-Age=-1`;
+              if (options?.path) cookieStr += `; Path=${options.path}`;
+              if (options?.domain) cookieStr += `; Domain=${options.domain}`;
               opts.resHeaders.append("Set-Cookie", cookieStr);
             },
           } as any;
@@ -81,35 +101,28 @@ export default async function handler(req: Request) {
       },
     });
 
-    // Adicionar CORS headers na resposta
-    const headers = new Headers(response.headers);
-    headers.set("Access-Control-Allow-Credentials", "true");
-    headers.set("Access-Control-Allow-Origin", req.headers.get("origin") || "*");
-    headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    // Aplicar headers CORS
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 
-    return new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers,
+    // Copiar headers da resposta do tRPC
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
     });
+
+    // Enviar resposta
+    res.status(response.status);
+    const body = await response.text();
+    return res.send(body);
   } catch (error) {
     console.error("[API] Handler error:", error);
-    return new Response(
-      JSON.stringify({
-        error: {
-          message: error instanceof Error ? error.message : "Internal server error",
-          stack: process.env.NODE_ENV === "development" ? (error instanceof Error ? error.stack : undefined) : undefined,
-        },
-      }),
-      {
-        status: 500,
-        headers: {
-          "Content-Type": "application/json",
-          "Access-Control-Allow-Credentials": "true",
-          "Access-Control-Allow-Origin": req.headers.get("origin") || "*",
-        },
-      }
-    );
+    res.status(500).json({
+      error: {
+        message: error instanceof Error ? error.message : "Internal server error",
+        stack: process.env.NODE_ENV === "development" ? (error instanceof Error ? error.stack : undefined) : undefined,
+      },
+    });
   }
 }
