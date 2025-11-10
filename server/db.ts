@@ -10,7 +10,7 @@ import {
   dailySales,
   InsertAccessCode,
   accessCodes,
-} from "../drizzle/schema";
+} from "../drizzle/schema.js";
 
 let _db: ReturnType<typeof drizzle> | null = null;
 let _client: ReturnType<typeof postgres> | null = null;

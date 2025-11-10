@@ -1,6 +1,6 @@
-import { COOKIE_NAME } from "../shared/const";
-import { getSessionCookieOptions } from "./_core/cookies";
-import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_core/trpc";
+import { COOKIE_NAME } from "../shared/const.js";
+import { getSessionCookieOptions } from "./_core/cookies.js";
+import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_core/trpc.js";
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import jwt from "jsonwebtoken";
@@ -26,7 +26,7 @@ import {
   markAccessCodeAsUsed,
   upsertUser,
   getUser,
-} from "./db";
+} from "./db.js";
 
 export const appRouter = router({
   auth: router({

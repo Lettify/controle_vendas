@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
-import { getUser } from "../db";
-import { COOKIE_NAME } from "../../shared/const";
+import { getUser } from "../db.js";
+import { COOKIE_NAME } from "../../shared/const.js";
 import jwt from "jsonwebtoken";
 
 export interface Context {
