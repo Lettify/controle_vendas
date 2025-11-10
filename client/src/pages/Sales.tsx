@@ -18,22 +18,22 @@ export default function Sales() {
   const [amount, setAmount] = useState("");
   const [dayInput, setDayInput] = useState(new Date().getDate().toString());
   const [showCalendar, setShowCalendar] = useState(false);
-  const [expandedEmployees, setExpandedEmployees] = useState<Set<string>>(new Set());
+  // const [, setExpandedEmployees] = useState<Set<string>>(new Set());
   const [salesModalOpen, setSalesModalOpen] = useState(false);
   const [selectedEmployeeSales, setSelectedEmployeeSales] = useState<any>(null);
 
   // Toggle expansão de vendas de um funcionário
-  const toggleEmployeeExpanded = (employeeId: string) => {
-    setExpandedEmployees(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(employeeId)) {
-        newSet.delete(employeeId);
-      } else {
-        newSet.add(employeeId);
-      }
-      return newSet;
-    });
-  };
+  // const toggleEmployeeExpanded = (employeeId: string) => {
+  //   setExpandedEmployees(prev => {
+  //     const newSet = new Set(prev);
+  //     if (newSet.has(employeeId)) {
+  //       newSet.delete(employeeId);
+  //     } else {
+  //       newSet.add(employeeId);
+  //     }
+  //     return newSet;
+  //   });
+  // };
 
   // Abrir modal com vendas do funcionário
   const openSalesModal = (item: any) => {
@@ -110,7 +110,7 @@ export default function Sales() {
   const [year, month, day] = selectedDate.split('-').map(Number);
   const selectedDay = day;
   const currentDate = new Date(year, month - 1, day);
-  const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+  // const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
 
   const employeesQuery = trpc.employees.listActive.useQuery({ companyId: COMPANY_ID });
   const salesQuery = trpc.sales.getByCompany.useQuery({
@@ -192,7 +192,7 @@ export default function Sales() {
     if (!salesQuery.data || !employeesQuery.data) return [];
     
     return [...salesQuery.data]
-      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
       .map(sale => ({
         ...sale,
         employee: employeesQuery.data.find(emp => emp.id === sale.employeeId)
@@ -531,7 +531,7 @@ export default function Sales() {
             <CardContent className="pt-3 pb-4 px-4">
               {recentSales.length > 0 ? (
                 <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
-                  {recentSales.map((sale, idx) => (
+                  {recentSales.map((sale) => (
                     <div 
                       key={sale.id}
                       className="group bg-gradient-to-br from-white to-gray-50 rounded-xl p-3 shadow-md border-2 border-gray-100 hover:border-cyan-400 hover:shadow-lg transition-all"
@@ -570,7 +570,7 @@ export default function Sales() {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
                               <p className="text-xs font-semibold text-gray-700">
-                                {new Date(sale.createdAt).toLocaleTimeString('pt-BR', { 
+                                {new Date(sale.createdAt || new Date()).toLocaleTimeString('pt-BR', { 
                                   hour: '2-digit', 
                                   minute: '2-digit'
                                 })}
@@ -793,8 +793,8 @@ export default function Sales() {
               <div className="p-6 overflow-y-auto max-h-[calc(85vh-250px)]">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {selectedEmployeeSales.sales
-                    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                    .map((sale, index) => (
+                    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .map((sale: any, index: number) => (
                       <div
                         key={sale.id}
                         className="group relative bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border-2 border-gray-200 hover:border-indigo-400 hover:shadow-lg transition-all"
@@ -817,7 +817,7 @@ export default function Sales() {
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                           </svg>
-                          {new Date(sale.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                          {new Date(sale.createdAt || new Date()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </div>
                         
                         {/* Botão remover */}

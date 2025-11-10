@@ -3,12 +3,12 @@ import { Button } from "@/components/ui/button";
 import { useLocation } from "wouter";
 import Navbar from "@/components/Navbar";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 
 const COMPANY_ID = "default-company";
 
 export default function Home() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const [, navigate] = useLocation();
 
   // Buscar dados do mês atual

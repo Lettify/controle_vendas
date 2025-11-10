@@ -1,8 +1,6 @@
 import { trpc } from "@/lib/trpc";
-import { useLocation } from "wouter";
 
 export function useAuth() {
-  const [, navigate] = useLocation();
   const { data: user, isLoading, error } = trpc.auth.me.useQuery();
   const logoutMutation = trpc.auth.logout.useMutation({
     onSuccess: () => {
