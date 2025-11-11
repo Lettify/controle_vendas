@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLocation } from "wouter";
 import Navbar from "@/components/Navbar";
 import EmployeeLink from "@/components/EmployeeLink";
+import { calculateCommission, formatCurrency, formatPercentage } from "@/lib/utils-commission";
 
 const COMPANY_ID = "default-company";
 
@@ -12,6 +13,14 @@ const monthNames = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
+
+// Função para obter data no formato YYYY-MM-DD sem problemas de timezone
+function getLocalDateString(date: Date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
 
 export default function Statistics() {
   const { user } = useAuth();
@@ -24,6 +33,9 @@ export default function Statistics() {
   // Estado para relatório diário
   const [selectedDate, setSelectedDate] = useState('');
   const [showDailyReport, setShowDailyReport] = useState(false);
+  
+  // Estado para visibilidade de comissões
+  const [showCommissions, setShowCommissions] = useState(false);
 
   const employeesQuery = trpc.employees.listActive.useQuery({ companyId: COMPANY_ID });
   const totalQuery = trpc.sales.getTotalByCompanyInMonth.useQuery({
@@ -82,12 +94,18 @@ export default function Statistics() {
         sales: []
       };
       
+      // Calcular comissão com base na taxa do funcionário
+      const commissionRate = emp.commissionRate ? parseFloat(emp.commissionRate) : 0.005;
+      const commission = calculateCommission(empStats.total, commissionRate);
+      
       return {
         employee: emp,
         total: empStats.total,
         salesCount: empStats.salesCount,
         average: empStats.salesCount > 0 ? empStats.total / empStats.salesCount : 0,
-        sales: empStats.sales
+        sales: empStats.sales,
+        commissionRate,
+        commission
       };
     });
     
@@ -103,6 +121,7 @@ export default function Statistics() {
   const totalSales = employeeStats.reduce((sum, e) => sum + e.salesCount, 0);
   const activeEmployees = employeeStats.filter(e => e.salesCount > 0).length;
   const averagePerEmployee = activeEmployees > 0 ? (totalQuery.data || 0) / activeEmployees : 0;
+  const totalCommissions = employeeStats.reduce((sum, e) => sum + e.commission, 0);
 
   // Calcular estatísticas diárias
   const dailyStats = useMemo(() => {
@@ -163,7 +182,7 @@ export default function Statistics() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Navbar title="Estatísticas" showUserInfo={true} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Filtros Modernos */}
         <Card className="mb-8 border-0 shadow-xl bg-white/80 backdrop-blur rounded-xl overflow-hidden">
           <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
@@ -281,11 +300,11 @@ export default function Statistics() {
         </Card>
 
         {/* Cards de Resumo */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-8">
           {/* Total Geral */}
           <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-emerald-400 to-teal-500 text-white overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-6 relative z-10">
+            <CardContent className="p-4 sm:p-6 relative z-10">
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -293,9 +312,9 @@ export default function Statistics() {
                   </svg>
                 </div>
               </div>
-              <p className="text-emerald-50 text-sm font-bold mb-1 uppercase tracking-wide">Total Geral</p>
-              <p className="text-3xl font-black mb-2">
-                R$ {(totalQuery.data || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <p className="text-emerald-50 text-xs font-bold mb-1 uppercase tracking-wide">Total Geral</p>
+              <p className="text-xl sm:text-2xl font-black mb-1 break-words">
+                {formatCurrency(totalQuery.data || 0)}
               </p>
               <p className="text-emerald-50 text-xs font-semibold flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -307,10 +326,47 @@ export default function Statistics() {
             </CardContent>
           </Card>
 
+          {/* Total de Comissões */}
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-purple-500 to-violet-600 text-white overflow-hidden relative group cursor-pointer" onClick={() => setShowCommissions(!showCommissions)}>
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
+            <CardContent className="p-4 sm:p-6 relative z-10">
+              <div className="flex items-center justify-between mb-3">
+                <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                </div>
+                {/* Indicador discreto - aparece apenas no hover */}
+                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                  {showCommissions ? (
+                    <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  )}
+                </div>
+              </div>
+              <p className="text-purple-50 text-xs font-bold mb-1 uppercase tracking-wide">Comissões</p>
+              <p className={`text-xl sm:text-2xl font-black mb-1 break-words transition-all duration-300 ${!showCommissions ? 'blur-md select-none' : ''}`}>
+                {formatCurrency(totalCommissions)}
+              </p>
+              <p className="text-purple-50 text-xs font-semibold flex items-center gap-1">
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                </svg>
+                Total a pagar
+              </p>
+            </CardContent>
+          </Card>
+
           {/* Total de Vendas */}
           <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-blue-400 to-indigo-500 text-white overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-6 relative z-10">
+            <CardContent className="p-4 sm:p-6 relative z-10">
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -318,8 +374,8 @@ export default function Statistics() {
                   </svg>
                 </div>
               </div>
-              <p className="text-blue-50 text-sm font-bold mb-1 uppercase tracking-wide">Vendas</p>
-              <p className="text-3xl font-black mb-2">{totalSales}</p>
+              <p className="text-blue-50 text-xs font-bold mb-1 uppercase tracking-wide">Vendas</p>
+              <p className="text-xl sm:text-2xl font-black mb-1">{totalSales}</p>
               <p className="text-blue-50 text-xs font-semibold flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
@@ -332,7 +388,7 @@ export default function Statistics() {
           {/* Funcionários Ativos */}
           <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-purple-400 to-pink-500 text-white overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-6 relative z-10">
+            <CardContent className="p-4 sm:p-6 relative z-10">
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -340,8 +396,8 @@ export default function Statistics() {
                   </svg>
                 </div>
               </div>
-              <p className="text-purple-50 text-sm font-bold mb-1 uppercase tracking-wide">Funcionários</p>
-              <p className="text-3xl font-black mb-2">{activeEmployees}</p>
+              <p className="text-purple-50 text-xs font-bold mb-1 uppercase tracking-wide">Funcionários</p>
+              <p className="text-xl sm:text-2xl font-black mb-1">{activeEmployees}</p>
               <p className="text-purple-50 text-xs font-semibold flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
@@ -354,7 +410,7 @@ export default function Statistics() {
           {/* Ticket Médio por Funcionário */}
           <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-orange-400 to-amber-500 text-white overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-6 relative z-10">
+            <CardContent className="p-4 sm:p-6 relative z-10">
               <div className="flex items-center justify-between mb-3">
                 <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -362,9 +418,9 @@ export default function Statistics() {
                   </svg>
                 </div>
               </div>
-              <p className="text-orange-50 text-sm font-bold mb-1 uppercase tracking-wide">Média/Funcionário</p>
-              <p className="text-3xl font-black mb-2">
-                R$ {averagePerEmployee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              <p className="text-orange-50 text-xs font-bold mb-1 uppercase tracking-wide">Média/Funcionário</p>
+              <p className="text-xl sm:text-2xl font-black mb-1 break-words">
+                {formatCurrency(averagePerEmployee)}
               </p>
               <p className="text-orange-50 text-xs font-semibold flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -395,6 +451,24 @@ export default function Statistics() {
               </CardTitle>
 
               <div className="flex items-center gap-3">
+                {/* Ícone discreto para toggle - clique no ícone de troféu */}
+                <div 
+                  onClick={() => setShowCommissions(!showCommissions)}
+                  className="w-8 h-8 flex items-center justify-center cursor-pointer opacity-30 hover:opacity-100 transition-all duration-200"
+                  title="Clique para alternar visualização"
+                >
+                  {showCommissions ? (
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                    </svg>
+                  )}
+                </div>
+
                 {/* Ordenação */}
                 <div className="flex gap-1 bg-white/20 p-1 rounded-lg">
                   <button
@@ -480,7 +554,7 @@ export default function Statistics() {
                 {employeeStats.map((item, index) => (
                   <div
                     key={item.employee.id}
-                    className={`relative overflow-hidden rounded-xl transition-all hover:shadow-lg ${
+                    className={`relative overflow-hidden rounded-xl transition-all duration-200 hover:shadow-lg hover:-translate-y-1 ${
                       index === 0 && sortMode === 'value' ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-2 border-yellow-300' :
                       index === 1 && sortMode === 'value' ? 'bg-gradient-to-r from-gray-50 to-slate-50 border-2 border-gray-300' :
                       index === 2 && sortMode === 'value' ? 'bg-gradient-to-r from-orange-50 to-red-50 border-2 border-orange-300' :
@@ -491,7 +565,7 @@ export default function Statistics() {
                       <div className="flex items-center gap-3 mb-3">
                         {/* Position Badge */}
                         {sortMode === 'value' && index < 3 ? (
-                          <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg ${
+                          <div className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center font-bold text-lg transition-transform hover:scale-110 hover:rotate-6 duration-200 ${
                             index === 0 ? 'bg-yellow-400 text-yellow-900' :
                             index === 1 ? 'bg-gray-400 text-gray-900' :
                             'bg-orange-400 text-orange-900'
@@ -499,7 +573,7 @@ export default function Statistics() {
                             {index === 0 ? '🥇' : index === 1 ? '🥈' : '🥉'}
                           </div>
                         ) : (
-                          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm">
+                          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-sm transition-all hover:bg-indigo-200 hover:scale-110 duration-200">
                             {index + 1}
                           </div>
                         )}
@@ -519,7 +593,7 @@ export default function Statistics() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-600">Total</span>
                           <span className="text-xl font-black text-emerald-600">
-                            R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatCurrency(item.total)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
@@ -529,8 +603,16 @@ export default function Statistics() {
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Ticket médio</span>
                           <span className="font-bold text-indigo-600">
-                            R$ {item.average.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatCurrency(item.average)}
                           </span>
+                        </div>
+                        <div className="pt-2 mt-2 border-t border-gray-200">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-500">Comissão ({formatPercentage(item.commissionRate)})</span>
+                            <span className={`text-base font-bold text-purple-600 transition-all duration-300 ${!showCommissions ? 'blur-md select-none' : ''}`}>
+                              {formatCurrency(item.commission)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -547,6 +629,7 @@ export default function Statistics() {
                       <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Total</th>
                       <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Vendas</th>
                       <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Ticket Médio</th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-gray-600 uppercase tracking-wider">Comissão</th>
                       <th className="px-4 py-3 text-center text-xs font-bold text-gray-600 uppercase tracking-wider">Ações</th>
                     </tr>
                   </thead>
@@ -575,7 +658,7 @@ export default function Statistics() {
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
                           <span className="text-lg font-black text-emerald-600">
-                            R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatCurrency(item.total)}
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-center">
@@ -585,8 +668,18 @@ export default function Statistics() {
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
                           <span className="text-base font-bold text-indigo-600">
-                            R$ {item.average.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            {formatCurrency(item.average)}
                           </span>
+                        </td>
+                        <td className="px-4 py-4 whitespace-nowrap text-right">
+                          <div className={`text-right transition-all duration-300 ${!showCommissions ? 'blur-md select-none' : ''}`}>
+                            <span className="text-base font-bold text-purple-600 block">
+                              {formatCurrency(item.commission)}
+                            </span>
+                            <span className="text-xs text-gray-500">
+                              ({formatPercentage(item.commissionRate)})
+                            </span>
+                          </div>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-center">
                           <button
@@ -658,7 +751,7 @@ export default function Statistics() {
               
               <button
                 onClick={() => {
-                  const today = new Date().toISOString().split('T')[0];
+                  const today = getLocalDateString();
                   setSelectedDate(today);
                   setShowDailyReport(true);
                 }}
@@ -692,7 +785,7 @@ export default function Statistics() {
                           <span className="text-sm font-bold text-pink-700 uppercase">Total do Dia</span>
                         </div>
                         <p className="text-2xl font-black text-pink-600">
-                          R$ {dailyStats.reduce((sum, s) => sum + s.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          {formatCurrency(dailyStats.reduce((sum, s) => sum + s.total, 0))}
                         </p>
                       </div>
 
@@ -734,7 +827,7 @@ export default function Statistics() {
                           <span className="text-sm font-bold text-orange-700 uppercase">Média por Venda</span>
                         </div>
                         <p className="text-2xl font-black text-orange-600">
-                          R$ {(dailyStats.reduce((sum, s) => sum + s.total, 0) / dailyStats.reduce((sum, s) => sum + s.salesCount, 0)).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                          {formatCurrency(dailyStats.reduce((sum, s) => sum + s.total, 0) / dailyStats.reduce((sum, s) => sum + s.salesCount, 0))}
                         </p>
                       </div>
                     </div>
@@ -830,12 +923,12 @@ export default function Statistics() {
                                 </td>
                                 <td className="px-6 py-5 text-right">
                                   <span className="text-lg font-black text-pink-600">
-                                    R$ {stat.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    {formatCurrency(stat.total)}
                                   </span>
                                 </td>
                                 <td className="px-6 py-5 text-right">
                                   <span className="text-base font-bold text-indigo-600">
-                                    R$ {stat.average.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                    {formatCurrency(stat.average)}
                                   </span>
                                 </td>
                                 <td className="px-6 py-5 text-right">
@@ -844,7 +937,7 @@ export default function Statistics() {
                                       <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                                     </svg>
                                     <span className="text-base font-bold text-emerald-600">
-                                      R$ {stat.highestSale.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      {formatCurrency(stat.highestSale)}
                                     </span>
                                   </div>
                                 </td>
@@ -854,7 +947,7 @@ export default function Statistics() {
                                       <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                     </svg>
                                     <span className="text-base font-bold text-red-600">
-                                      R$ {stat.lowestSale.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                      {formatCurrency(stat.lowestSale)}
                                     </span>
                                   </div>
                                 </td>

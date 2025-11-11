@@ -53,6 +53,7 @@ export const employees = pgTable("employees", {
   email: varchar("email", { length: 320 }),
   phone: varchar("phone", { length: 20 }),
   position: varchar("position", { length: 255 }),
+  commissionRate: decimal("commission_rate", { precision: 5, scale: 3 }).default("0.005").notNull(), // 0.5% = 0.005
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),

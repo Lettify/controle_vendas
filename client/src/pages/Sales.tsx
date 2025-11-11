@@ -7,13 +7,23 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLocation } from "wouter";
 import Navbar from "@/components/Navbar";
 import EmployeeLink from "@/components/EmployeeLink";
+import { formatCurrency } from "@/lib/utils-commission";
 
 const COMPANY_ID = "default-company";
 
 export default function Sales() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  
+  // Função auxiliar para obter data local no formato YYYY-MM-DD
+  const getLocalDateString = (date: Date = new Date()) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+  
+  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [amount, setAmount] = useState("");
   const [dayInput, setDayInput] = useState(new Date().getDate().toString());
@@ -208,7 +218,7 @@ export default function Sales() {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
       <Navbar title="Registrar Vendas" showUserInfo={true} />
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Seções de Operação - Nova Venda e Últimas Vendas */}
         <div className="flex justify-center mb-4">
           <div className="grid grid-cols-1 lg:grid-cols-[450px_480px] gap-4">
@@ -534,11 +544,11 @@ export default function Sales() {
                   {recentSales.map((sale) => (
                     <div 
                       key={sale.id}
-                      className="group bg-gradient-to-br from-white to-gray-50 rounded-xl p-3 shadow-md border-2 border-gray-100 hover:border-cyan-400 hover:shadow-lg transition-all"
+                      className="group bg-gradient-to-br from-white to-gray-50 rounded-xl p-3 shadow-md border-2 border-gray-100 hover:border-cyan-400 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
                     >
                       <div className="flex items-start gap-3">
                         {/* Avatar */}
-                        <div className="w-10 h-10 min-w-[2.5rem] rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0 group-hover:scale-110 transition-transform">
+                        <div className="w-10 h-10 min-w-[2.5rem] rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
                           {sale.employee?.name.charAt(0).toUpperCase()}
                         </div>
                         
@@ -549,13 +559,13 @@ export default function Sales() {
                               <EmployeeLink
                                 employeeId={sale.employeeId}
                                 employeeName={sale.employee.name}
-                                className="font-bold text-gray-900 text-base hover:text-cyan-600"
+                                className="font-bold text-gray-900 text-base hover:text-cyan-600 transition-colors"
                               />
                             )}
                             <button
                               onClick={() => handleDeleteSale(sale.id)}
                               disabled={deleteSaleMutation.isPending}
-                              className="text-red-500 hover:text-white hover:bg-red-500 rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0 shadow-sm hover:shadow-md"
+                              className="text-red-500 hover:text-white hover:bg-red-500 hover:rotate-12 rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex-shrink-0 shadow-sm hover:shadow-md"
                               title="Remover venda"
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -565,7 +575,7 @@ export default function Sales() {
                           </div>
                           
                           <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-1.5 bg-gray-100 px-2.5 py-1.5 rounded-lg">
+                            <div className="flex items-center gap-1.5 bg-gray-100 px-2.5 py-1.5 rounded-lg group-hover:bg-cyan-50 transition-colors">
                               <svg className="w-3.5 h-3.5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                               </svg>
@@ -576,8 +586,8 @@ export default function Sales() {
                                 })}
                               </p>
                             </div>
-                            <span className="text-emerald-600 font-black text-lg whitespace-nowrap bg-emerald-50 px-3 py-1 rounded-lg">
-                              R$ {parseFloat(sale.amount as any).toFixed(2)}
+                            <span className="text-emerald-600 font-black text-lg whitespace-nowrap bg-emerald-50 px-3 py-1 rounded-lg group-hover:bg-emerald-100 group-hover:scale-105 transition-all duration-200">
+                              {formatCurrency(parseFloat(sale.amount as any))}
                             </span>
                           </div>
                         </div>
@@ -645,7 +655,7 @@ export default function Sales() {
                     <div className="min-w-0">
                       <p className="text-emerald-100 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap">Total do Dia</p>
                       <p className="text-xl font-black text-white whitespace-nowrap">
-                        R$ {employeeRanking.reduce((sum, item) => sum + item.total, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        {formatCurrency(employeeRanking.reduce((sum, item) => sum + item.total, 0))}
                       </p>
                     </div>
                   </div>
@@ -704,16 +714,16 @@ export default function Sales() {
                               <div className="flex items-center gap-1.5 text-xs text-gray-600">
                                 <span className="font-medium">{item.sales.length} {item.sales.length === 1 ? 'venda' : 'vendas'}</span>
                                 <span className="text-gray-400">•</span>
-                                <span>Média: R$ {(item.total / item.sales.length).toFixed(2)}</span>
+                                <span>Média: {formatCurrency(item.total / item.sales.length)}</span>
                               </div>
                             </div>
                             
                             {/* Total e Botão Ver Vendas */}
                             <div className="flex items-center gap-2.5">
                               <div className="text-right">
-                                <p className="text-xl font-black text-emerald-600">
-                                  R$ {item.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                </p>
+                              <span className="text-2xl font-black text-emerald-600">
+                                  {formatCurrency(item.total)}
+                                </span>
                               </div>
                               
                               {/* Botão para ver vendas */}
@@ -760,96 +770,114 @@ export default function Sales() {
               onClick={(e) => e.stopPropagation()}
             >
               {/* Header do Modal */}
-              <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
+              <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 text-white px-6 py-5">
+                <div className="flex items-center justify-between">
+                  {/* Info do Funcionário */}
+                  <div className="flex items-center gap-4">
+                    <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md border-2 border-white/40 flex items-center justify-center text-2xl font-black shadow-lg">
+                      {selectedEmployeeSales.employee.name.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <h3 className="text-2xl font-bold">{selectedEmployeeSales.employee.name}</h3>
-                      <p className="text-indigo-100 text-sm">
-                        {selectedEmployeeSales.sales.length} {selectedEmployeeSales.sales.length === 1 ? 'venda registrada' : 'vendas registradas'}
-                      </p>
+                      <h3 className="text-xl font-black mb-1">{selectedEmployeeSales.employee.name}</h3>
+                      <div className="flex items-center gap-3 text-sm">
+                        <span className="bg-white/20 px-2.5 py-0.5 rounded-full font-semibold">
+                          {selectedEmployeeSales.sales.length} {selectedEmployeeSales.sales.length === 1 ? 'venda' : 'vendas'}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="font-bold">{formatCurrency(selectedEmployeeSales.total)}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
                   
-                  <button
-                    onClick={() => setSalesModalOpen(false)}
-                    className="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-                
-                {/* Stats rápidas */}
-                <div className="grid grid-cols-2 gap-3 mt-4">
-                  <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-                    <p className="text-indigo-100 text-xs font-medium mb-1">Total</p>
-                    <p className="text-2xl font-black">
-                      R$ {selectedEmployeeSales.total.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
-                  </div>
-                  <div className="bg-white/10 backdrop-blur rounded-lg p-3">
-                    <p className="text-indigo-100 text-xs font-medium mb-1">Média por venda</p>
-                    <p className="text-2xl font-black">
-                      R$ {(selectedEmployeeSales.total / selectedEmployeeSales.sales.length).toFixed(2)}
-                    </p>
+                  {/* Stats e Botão Fechar */}
+                  <div className="flex items-center gap-3">
+                    {/* Média por venda */}
+                    <div className="bg-white/15 backdrop-blur-md border border-white/30 rounded-xl px-4 py-2.5 text-center">
+                      <p className="text-xs text-white/80 font-medium mb-0.5">Ticket Médio</p>
+                      <p className="text-lg font-black">
+                        {formatCurrency(selectedEmployeeSales.total / selectedEmployeeSales.sales.length)}
+                      </p>
+                    </div>
+                    
+                    {/* Botão fechar */}
+                    <button
+                      onClick={() => setSalesModalOpen(false)}
+                      className="w-10 h-10 rounded-xl bg-white/20 hover:bg-white/30 border border-white/30 transition-all flex items-center justify-center hover:rotate-90 duration-300"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
                   </div>
                 </div>
               </div>
               
               {/* Conteúdo do Modal - Lista de Vendas */}
-              <div className="p-6 overflow-y-auto max-h-[calc(85vh-250px)]">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="p-6 overflow-y-auto max-h-[calc(85vh-140px)] bg-gradient-to-br from-gray-50 to-slate-50">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {selectedEmployeeSales.sales
                     .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                     .map((sale: any, index: number) => (
                       <div
                         key={sale.id}
-                        className="group relative bg-gradient-to-br from-white to-gray-50 rounded-xl p-4 border-2 border-gray-200 hover:border-indigo-400 hover:shadow-lg transition-all"
+                        className="group relative bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-indigo-400 hover:shadow-xl transition-all duration-200 hover:-translate-y-1"
                       >
-                        {/* Badge de número */}
-                        <div className="absolute -top-2 -left-2 w-7 h-7 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-full flex items-center justify-center shadow-md">
-                          <span className="text-white font-bold text-xs">{index + 1}</span>
+                        {/* Badge de número com gradiente */}
+                        <div className="absolute -top-3 -left-3 w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg rotate-3 group-hover:rotate-6 transition-transform">
+                          <span className="text-white font-black text-sm">{index + 1}</span>
                         </div>
                         
-                        {/* Valor da venda */}
-                        <div className="mb-3 pt-2">
-                          <p className="text-xs text-gray-500 font-medium mb-1">Valor</p>
-                          <p className="text-2xl font-black text-emerald-600">
-                            R$ {parseFloat(sale.amount as any).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                          </p>
+                        {/* Valor da venda - Destaque Principal */}
+                        <div className="mb-4 pt-3 pb-3 border-b-2 border-gray-100">
+                          <div className="flex items-baseline gap-2 mb-1">
+                            <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Valor</span>
+                          </div>
+                          <span className="text-2xl font-black text-emerald-600 block">
+                            {formatCurrency(parseFloat(sale.amount as any))}
+                          </span>
                         </div>
                         
-                        {/* Horário */}
-                        <div className="mb-3 flex items-center gap-2 text-sm text-gray-600">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          {new Date(sale.createdAt || new Date()).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        {/* Horário da venda */}
+                        <div className="mb-4 flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+                          <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <p className="text-xs text-gray-500 font-medium">Horário</p>
+                            <p className="text-sm font-bold text-gray-900">
+                              {new Date(sale.createdAt || new Date()).toLocaleTimeString('pt-BR', { 
+                                hour: '2-digit', 
+                                minute: '2-digit',
+                                second: '2-digit'
+                              })}
+                            </p>
+                          </div>
                         </div>
                         
-                        {/* Botão remover */}
+                        {/* Botão remover - Mais sutil */}
                         <button
                           onClick={() => {
                             handleDeleteSale(sale.id);
-                            // Se for a última venda, fecha o modal
                             if (selectedEmployeeSales.sales.length === 1) {
                               setSalesModalOpen(false);
                             }
                           }}
                           disabled={deleteSaleMutation.isPending}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-red-50 hover:bg-red-600 text-red-600 hover:text-white rounded-lg transition-all text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed group-hover:shadow-md"
+                          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white rounded-lg transition-all text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed border-2 border-red-200 hover:border-red-500"
                         >
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                           </svg>
-                          Remover venda
+                          Remover
                         </button>
                       </div>
                     ))}

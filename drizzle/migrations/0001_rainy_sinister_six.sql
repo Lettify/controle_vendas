@@ -1,0 +1,1 @@
+ALTER TABLE "employees" ADD COLUMN "commission_rate" numeric(5, 3) DEFAULT '0.005' NOT NULL;

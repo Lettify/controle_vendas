@@ -8,6 +8,13 @@
       "when": 1762808873365,
       "tag": "0000_romantic_green_goblin",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1762815534803,
+      "tag": "0001_rainy_sinister_six",
+      "breakpoints": true
     }
   ]
 }

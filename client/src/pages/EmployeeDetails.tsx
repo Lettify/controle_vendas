@@ -241,28 +241,29 @@ export default function EmployeeDetails() {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Navbar title={employee.name} showUserInfo={true} />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Botão Voltar */}
         <Button
           variant="outline"
-          onClick={() => navigate("/employees")}
-          className="mb-6 border-indigo-200 hover:bg-indigo-50"
+          onClick={() => window.history.back()}
+          className="mb-6 border-indigo-200 hover:bg-indigo-50 hover:border-indigo-400 transition-all duration-200 group"
         >
-          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <svg className="w-4 h-4 mr-2 group-hover:-translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
           </svg>
-          Voltar para Equipe
+          Voltar
         </Button>
 
         {/* Header profissional com info do funcionário */}
-        <Card className="mb-8 border-0 shadow-lg overflow-hidden bg-white">
-          <CardContent className="p-6">
+        <Card className="mb-8 border-0 shadow-xl overflow-hidden bg-gradient-to-br from-white via-indigo-50/30 to-purple-50/30 hover:shadow-2xl transition-all duration-300">
+          <CardContent className="p-8">
             <div className="flex flex-col md:flex-row md:items-center gap-6">
               {/* Badge com iniciais e status */}
               <div className="flex items-center gap-4">
-                <div className="relative">
-                  <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
-                    <span className="text-white font-bold text-2xl tracking-tight">{getInitials(employee.name)}</span>
+                <div className="relative group">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-2xl blur-lg opacity-50 group-hover:opacity-75 transition-opacity duration-300"></div>
+                  <div className="relative w-24 h-24 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-xl group-hover:scale-105 transition-transform duration-300">
+                    <span className="text-white font-bold text-3xl tracking-tight">{getInitials(employee.name)}</span>
                   </div>
                   {employee.isActive && (
                     <div className="absolute -bottom-1 -right-1 bg-emerald-500 rounded-full p-1.5 border-2 border-white shadow-md">
@@ -275,7 +276,7 @@ export default function EmployeeDetails() {
 
                 {/* Nome e status */}
                 <div>
-                  <h1 className="text-3xl font-bold text-gray-900 mb-2">{employee.name}</h1>
+                  <h1 className="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 mb-2">{employee.name}</h1>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
                       employee.isActive 
@@ -300,10 +301,10 @@ export default function EmployeeDetails() {
 
               {/* Informações de contato */}
               <div className="flex-1 md:ml-auto">
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-col sm:flex-row gap-3 animate-fade-in">
                   {employee.email && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:border-blue-400 hover:shadow-md transition-all duration-200 group cursor-pointer">
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
                         <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                         </svg>
@@ -315,8 +316,8 @@ export default function EmployeeDetails() {
                     </div>
                   )}
                   {employee.phone && (
-                    <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="w-8 h-8 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <div className="flex items-center gap-2 px-3 py-2 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 hover:border-green-400 hover:shadow-md transition-all duration-200 group cursor-pointer">
+                      <div className="w-8 h-8 bg-gradient-to-br from-green-100 to-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
                         <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                         </svg>
@@ -334,15 +335,18 @@ export default function EmployeeDetails() {
         </Card>
 
         {/* Filtro de período */}
-        <Card className="mb-8 border-0 shadow-xl bg-gradient-to-br from-white to-gray-50">
+        <Card className="mb-8 border-0 shadow-xl bg-gradient-to-br from-white via-blue-50/20 to-indigo-50/30 hover:shadow-2xl transition-shadow duration-300">
           <CardContent className="py-6">
             <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
+              <div className="relative group">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-500 rounded-xl blur opacity-50 group-hover:opacity-75 transition-opacity duration-300"></div>
+                <div className="relative w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
               </div>
-              <h3 className="text-xl font-bold text-gray-900">Filtrar Período</h3>
+              <h3 className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-indigo-600 to-purple-600">Filtrar Período</h3>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -356,7 +360,7 @@ export default function EmployeeDetails() {
                     setSelectedMonth(Number(e.target.value));
                     setSelectedDate("");
                   }}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-semibold text-gray-700 shadow-sm"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-semibold text-gray-700 shadow-sm hover:border-indigo-300 transition-colors cursor-pointer"
                 >
                   {monthNames.map((month, index) => (
                     <option key={index} value={index + 1}>{month}</option>
@@ -374,7 +378,7 @@ export default function EmployeeDetails() {
                     setSelectedYear(Number(e.target.value));
                     setSelectedDate("");
                   }}
-                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-semibold text-gray-700 shadow-sm"
+                  className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-semibold text-gray-700 shadow-sm hover:border-indigo-300 transition-colors cursor-pointer"
                 >
                   {[2023, 2024, 2025, 2026].map(year => (
                     <option key={year} value={year}>{year}</option>
@@ -391,16 +395,16 @@ export default function EmployeeDetails() {
                     type="date"
                     value={selectedDate}
                     onChange={(e) => setSelectedDate(e.target.value)}
-                    className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-semibold text-gray-700 shadow-sm"
+                    className="flex-1 px-4 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white font-semibold text-gray-700 shadow-sm hover:border-indigo-300 transition-colors cursor-pointer"
                   />
                   {selectedDate && (
                     <Button
                       variant="outline"
                       onClick={() => setSelectedDate("")}
-                      className="border-2 border-gray-300 hover:bg-gray-100 rounded-xl"
+                      className="border-2 border-red-300 hover:bg-red-50 hover:border-red-400 rounded-xl group transition-all duration-200"
                       title="Limpar filtro de dia"
                     >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <svg className="w-5 h-5 text-red-500 group-hover:rotate-90 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
                     </Button>
@@ -410,9 +414,12 @@ export default function EmployeeDetails() {
             </div>
 
             {selectedDate && (
-              <div className="mt-4 p-3 bg-indigo-50 border-2 border-indigo-200 rounded-xl">
-                <p className="text-sm font-semibold text-indigo-700">
-                  📅 Exibindo vendas do dia: {formatDateWithoutTimezone(selectedDate)}
+              <div className="mt-4 p-4 bg-gradient-to-r from-indigo-50 via-purple-50 to-pink-50 border-2 border-indigo-200 rounded-xl shadow-md">
+                <p className="text-sm font-bold text-indigo-700 flex items-center gap-2">
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                  </svg>
+                  Exibindo vendas do dia: {formatDateWithoutTimezone(selectedDate)}
                 </p>
               </div>
             )}
@@ -564,11 +571,11 @@ export default function EmployeeDetails() {
         </div>
 
         {/* Lista de vendas modernizada */}
-        <Card className="border-0 shadow-lg bg-white overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-b-0">
+        <Card className="border-0 shadow-2xl bg-white overflow-hidden hover:shadow-3xl transition-shadow duration-300">
+          <CardHeader className="bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white border-b-0">
             <div className="flex items-center justify-between">
               <CardTitle className="flex items-center gap-3">
-                <div className="w-11 h-11 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                <div className="w-11 h-11 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
                   <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                   </svg>
