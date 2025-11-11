@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,10 @@ export default function EmployeeDetails() {
   const [, navigate] = useLocation();
   const [, params] = useRoute("/employees/:id");
   const employeeId = params?.id || "";
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+  }, [employeeId]);
 
   const now = new Date();
   const [selectedYear, setSelectedYear] = useState(now.getFullYear());

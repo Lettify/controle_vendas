@@ -1,4 +1,17 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import type { ValueType, NameType } from "recharts/types/component/DefaultTooltipContent";
+import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,6 +50,18 @@ export default function Statistics() {
   // Estado para visibilidade de comissões
   const [showCommissions, setShowCommissions] = useState(false);
 
+  const numberFormatter = useMemo(() => new Intl.NumberFormat("pt-BR"), []);
+  const compactCurrencyFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat("pt-BR", {
+        style: "currency",
+        currency: "BRL",
+        notation: "compact",
+        maximumFractionDigits: 1,
+      }),
+    []
+  );
+
   const employeesQuery = trpc.employees.listActive.useQuery({ companyId: COMPANY_ID });
   const totalQuery = trpc.sales.getTotalByCompanyInMonth.useQuery({
     companyId: COMPANY_ID,
@@ -55,49 +80,90 @@ export default function Statistics() {
     endDate,
   });
 
-  // Query para vendas do dia selecionado
-  const dailySalesQuery = trpc.sales.getByCompany.useQuery({
-    companyId: COMPANY_ID,
-    startDate: selectedDate,
-    endDate: selectedDate,
-  }, {
-    enabled: showDailyReport && selectedDate !== '',
-  });
+  const dailySalesQuery = trpc.sales.getByCompany.useQuery(
+    {
+      companyId: COMPANY_ID,
+      startDate: selectedDate,
+      endDate: selectedDate,
+    },
+    {
+      enabled: showDailyReport && selectedDate !== "",
+    }
+  );
+
+  // Restaura filtros quando acessamos um link compartilhado
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const monthParam = Number(params.get("month"));
+    const yearParam = Number(params.get("year"));
+    const dateParam = params.get("date");
+
+    if (monthParam >= 1 && monthParam <= 12) {
+      setSelectedMonth(monthParam);
+    }
+
+    if (yearParam >= 2000 && yearParam <= 2100) {
+      setSelectedYear(yearParam);
+    }
+
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      setSelectedDate(dateParam);
+      setShowDailyReport(true);
+    }
+  }, []);
+
+  // Mantém a URL sincronizada com os filtros ativos
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams();
+    params.set("month", String(selectedMonth));
+    params.set("year", String(selectedYear));
+
+    if (showDailyReport && selectedDate) {
+      params.set("date", selectedDate);
+    }
+
+    const search = params.toString();
+    const newUrl = `${window.location.pathname}${search ? `?${search}` : ""}`;
+    window.history.replaceState(null, "", newUrl);
+  }, [selectedMonth, selectedYear, selectedDate, showDailyReport]);
 
   // Calcular estatísticas por funcionário
   const employeeStats = useMemo(() => {
     const sales = salesQuery.data || [];
     const employees = employeesQuery.data || [];
-    
+
     const statsByEmployee = new Map();
-    
-    sales.forEach(sale => {
+
+    sales.forEach((sale) => {
       const current = statsByEmployee.get(sale.employeeId) || {
         employeeId: sale.employeeId,
         total: 0,
         salesCount: 0,
-        sales: []
+        sales: [],
       };
-      
+
       current.total += parseFloat(sale.amount);
       current.salesCount += 1;
       current.sales.push(sale);
-      
+
       statsByEmployee.set(sale.employeeId, current);
     });
-    
-    const stats = employees.map(emp => {
+
+    const stats = employees.map((emp) => {
       const empStats = statsByEmployee.get(emp.id) || {
         employeeId: emp.id,
         total: 0,
         salesCount: 0,
-        sales: []
+        sales: [],
       };
-      
-      // Calcular comissão com base na taxa do funcionário
+
       const commissionRate = emp.commissionRate ? parseFloat(emp.commissionRate) : 0.005;
       const commission = calculateCommission(empStats.total, commissionRate);
-      
+
       return {
         employee: emp,
         total: empStats.total,
@@ -105,73 +171,181 @@ export default function Statistics() {
         average: empStats.salesCount > 0 ? empStats.total / empStats.salesCount : 0,
         sales: empStats.sales,
         commissionRate,
-        commission
+        commission,
       };
     });
-    
-    // Ordenar
+
     return stats.sort((a, b) => {
-      if (sortMode === 'value') return b.total - a.total;
-      if (sortMode === 'sales') return b.salesCount - a.salesCount;
+      if (sortMode === "value") return b.total - a.total;
+      if (sortMode === "sales") return b.salesCount - a.salesCount;
       return a.employee.name.localeCompare(b.employee.name);
     });
   }, [salesQuery.data, employeesQuery.data, sortMode]);
 
-  // Estatísticas gerais
-  const totalSales = employeeStats.reduce((sum, e) => sum + e.salesCount, 0);
-  const activeEmployees = employeeStats.filter(e => e.salesCount > 0).length;
-  const averagePerEmployee = activeEmployees > 0 ? (totalQuery.data || 0) / activeEmployees : 0;
-  const totalCommissions = employeeStats.reduce((sum, e) => sum + e.commission, 0);
+  const monthLabel = `${monthNames[selectedMonth - 1]} / ${selectedYear}`;
+  const monthlyTotal = totalQuery.data || 0;
 
-  // Calcular estatísticas diárias
+  const totalSales = employeeStats.reduce((sum, item) => sum + item.salesCount, 0);
+  const activeEmployees = employeeStats.filter((item) => item.salesCount > 0).length;
+  const averagePerEmployee = activeEmployees > 0 ? monthlyTotal / activeEmployees : 0;
+  const totalCommissions = employeeStats.reduce((sum, item) => sum + item.commission, 0);
+
   const dailyStats = useMemo(() => {
     if (!showDailyReport || !dailySalesQuery.data) return [];
-    
+
     const sales = dailySalesQuery.data;
     const employees = employeesQuery.data || [];
-    
+
     const statsByEmployee = new Map();
-    
-    sales.forEach(sale => {
+
+    sales.forEach((sale) => {
       const current = statsByEmployee.get(sale.employeeId) || {
         employeeId: sale.employeeId,
         total: 0,
         salesCount: 0,
         highestSale: 0,
         lowestSale: Infinity,
-        sales: []
+        sales: [],
       };
-      
+
       const amount = parseFloat(sale.amount);
       current.total += amount;
       current.salesCount += 1;
       current.highestSale = Math.max(current.highestSale, amount);
       current.lowestSale = Math.min(current.lowestSale, amount);
       current.sales.push(sale);
-      
+
       statsByEmployee.set(sale.employeeId, current);
     });
-    
-    const stats = employees
-      .map(emp => {
-        const empStats = statsByEmployee.get(emp.id);
-        if (!empStats) return null;
-        
-        return {
+
+    const stats = employees.flatMap((emp) => {
+      const empStats = statsByEmployee.get(emp.id);
+      if (!empStats) return [];
+
+      return [
+        {
           employee: emp,
           total: empStats.total,
           salesCount: empStats.salesCount,
           average: empStats.total / empStats.salesCount,
           highestSale: empStats.highestSale,
           lowestSale: empStats.lowestSale === Infinity ? 0 : empStats.lowestSale,
-          sales: empStats.sales
-        };
-      })
-      .filter(stat => stat !== null)
-      .sort((a, b) => b.total - a.total);
-    
-    return stats;
+          sales: empStats.sales,
+        },
+      ];
+    });
+
+    return stats.sort((a, b) => b.total - a.total);
   }, [dailySalesQuery.data, employeesQuery.data, showDailyReport]);
+
+  const dailyTrendData = useMemo(() => {
+    const sales = salesQuery.data || [];
+    const totalsByDay = sales.reduce<Record<string, number>>((acc, sale) => {
+      const key = (sale as { date?: string }).date;
+      if (!key) return acc;
+      const amount = parseFloat(String((sale as { amount?: string | number }).amount ?? 0));
+      acc[key] = (acc[key] || 0) + amount;
+      return acc;
+    }, {});
+
+    const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+
+    return Array.from({ length: daysInMonth }, (_, index) => {
+      const day = index + 1;
+      const key = `${selectedYear}-${String(selectedMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      const total = totalsByDay[key] ?? 0;
+
+      return {
+        day,
+        label: String(day).padStart(2, "0"),
+        total,
+      };
+    });
+  }, [salesQuery.data, selectedMonth, selectedYear]);
+
+  const activeDaysInMonth = useMemo(
+    () => dailyTrendData.filter((item) => item.total > 0).length,
+    [dailyTrendData]
+  );
+
+  const averageDaily = activeDaysInMonth > 0 ? monthlyTotal / activeDaysInMonth : 0;
+  const hasDailyTrend = dailyTrendData.some((item) => item.total > 0);
+
+  const bestDay = useMemo(() => {
+    const daysWithSales = dailyTrendData.filter((item) => item.total > 0);
+    if (daysWithSales.length === 0) return null;
+    return daysWithSales.reduce((acc, item) => (item.total > acc.total ? item : acc), daysWithSales[0]);
+  }, [dailyTrendData]);
+
+  const topPerformer = useMemo(() => {
+    if (employeeStats.length === 0) return null;
+    return [...employeeStats].sort((a, b) => b.total - a.total)[0];
+  }, [employeeStats]);
+
+  const topPerformerShare = topPerformer && monthlyTotal > 0 ? (topPerformer.total / monthlyTotal) * 100 : 0;
+
+  const topEmployeesChartData = useMemo(() => {
+    const ranked = [...employeeStats]
+      .filter((item) => item.total > 0)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 6);
+
+    return ranked.map((item) => {
+      const firstName = item.employee.name?.split(" ")[0] ?? item.employee.name;
+      const totalValue = Number(item.total);
+      const share = monthlyTotal > 0 ? (totalValue / monthlyTotal) * 100 : 0;
+
+      return {
+        name: firstName,
+        fullName: item.employee.name,
+        total: totalValue,
+        salesCount: item.salesCount,
+        share,
+      };
+    });
+  }, [employeeStats, monthlyTotal]);
+
+  const hasTopEmployeesData = topEmployeesChartData.length > 0;
+
+  const renderDailyTooltip = ({ active, payload, label }: TooltipContentProps<ValueType, NameType>) => {
+    const point = payload?.[0];
+    if (!active || !point) return null;
+    const total = Number(point.value ?? 0);
+    const difference = total - averageDaily;
+
+    return (
+      <div className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs shadow-lg">
+        <p className="font-semibold text-gray-700">Dia {String(label ?? "").padStart(2, "0")}</p>
+        <p className="mt-1 text-gray-600">
+          Total: <span className="font-semibold text-indigo-600">{formatCurrency(total)}</span>
+        </p>
+        {averageDaily > 0 && (
+          <p className="text-gray-500">
+            Diferença vs média: {difference >= 0 ? "+" : "-"}
+            {formatCurrency(Math.abs(difference))}
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const renderTopEmployeesTooltip = ({ active, payload }: TooltipContentProps<ValueType, NameType>) => {
+    const point = payload?.[0];
+    if (!active || !point) return null;
+    const item = point.payload as (typeof topEmployeesChartData)[number] | undefined;
+    if (!item) return null;
+
+    return (
+      <div className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs shadow-lg">
+        <p className="text-sm font-semibold text-gray-700">{item.fullName}</p>
+        <p className="mt-1 text-gray-600">
+          Total: <span className="font-semibold text-indigo-600">{formatCurrency(item.total)}</span>
+        </p>
+        <p className="text-gray-500">Vendas: {item.salesCount}</p>
+        <p className="text-gray-500">Participação: {item.share.toFixed(1)}%</p>
+      </div>
+    );
+  };
 
   if (!user) {
     navigate("/login");
@@ -179,42 +353,134 @@ export default function Statistics() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
       <Navbar title="Estatísticas" showUserInfo={true} />
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-10">
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-purple-600 to-indigo-700 text-white shadow-xl">
+          <div className="absolute inset-0 opacity-40">
+            <div className="absolute -top-24 -right-12 h-72 w-72 rounded-full bg-white/20 blur-3xl" />
+            <div className="absolute top-32 -left-16 h-60 w-60 rounded-full bg-purple-300/30 blur-3xl" />
+          </div>
+          <div className="relative px-6 py-8 sm:px-10 sm:py-12 lg:px-14 lg:py-16">
+            <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+              <div className="max-w-2xl space-y-5">
+                <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-sm font-semibold text-white/85 backdrop-blur-sm">
+                  <span className="inline-block h-2 w-2 rounded-full bg-lime-300" />
+                  {monthLabel} • Painel analítico
+                </span>
+                <h1 className="text-3xl font-black leading-tight tracking-tight sm:text-[2.65rem]">
+                  Insights do desempenho comercial da equipe
+                </h1>
+                <p className="text-sm sm:text-base text-white/85">
+                  Explore tendências do mês, compare a performance da equipe e mergulhe em detalhes diários para tomar decisões rápidas e embasadas.
+                </p>
+                <div className="flex flex-wrap gap-3 text-xs font-semibold text-white/80">
+                  <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 backdrop-blur-sm">
+                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h2m4 0h12M3 12h18M3 17h12" />
+                    </svg>
+                    {numberFormatter.format(totalSales)} vendas registradas
+                  </span>
+                  {activeDaysInMonth > 0 && (
+                    <span className="inline-flex items-center gap-2 rounded-full bg-white/12 px-3 py-1 backdrop-blur-sm">
+                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {activeDaysInMonth} {activeDaysInMonth === 1 ? 'dia com movimento' : 'dias com movimento'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="w-full max-w-sm rounded-2xl border border-white/25 bg-white/10 p-6 shadow-lg backdrop-blur">
+                <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
+                  Receita no período
+                </p>
+                <p className="mt-3 text-3xl font-bold sm:text-4xl">
+                  {formatCurrency(monthlyTotal)}
+                </p>
+                <div className="mt-6 space-y-4">
+                  {bestDay && (
+                    <div className="rounded-xl border border-white/15 bg-white/15 px-4 py-3 text-sm text-white/90">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Melhor dia</p>
+                      <p className="mt-1 text-base font-semibold text-white">
+                        Dia {String(bestDay.day).padStart(2, '0')} • {formatCurrency(bestDay.total)}
+                      </p>
+                    </div>
+                  )}
+                  {averageDaily > 0 && (
+                    <div className="rounded-xl border border-white/15 bg-white/12 px-4 py-3 text-sm text-white/90">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Média diária</p>
+                      <p className="mt-1 text-base font-semibold text-white">
+                        {formatCurrency(averageDaily)}
+                      </p>
+                    </div>
+                  )}
+                  {topPerformer && (
+                    <div className="rounded-xl border border-white/15 bg-white/12 px-4 py-3 text-sm text-white/90">
+                      <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Top performer</p>
+                      <div className="mt-1 flex items-center justify-between gap-3">
+                        <span className="text-base font-semibold text-white line-clamp-1">
+                          {topPerformer.employee.name}
+                        </span>
+                        <button
+                          onClick={() => navigate(`/employees/${topPerformer.employee.id}`)}
+                          className="inline-flex items-center gap-1 rounded-full border border-white/40 px-3 py-1 text-[11px] font-semibold text-white/85 transition-all hover:bg-white/15"
+                        >
+                          Ver
+                          <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-white/85">
+                        <span>{topPerformer.salesCount} venda{topPerformer.salesCount === 1 ? '' : 's'}</span>
+                        <span>{formatCurrency(topPerformer.total)}</span>
+                      </div>
+                      <p className="text-[11px] text-white/75">
+                        Participação no mês: {topPerformerShare.toFixed(1)}%
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Filtros Modernos */}
-        <Card className="mb-8 border-0 shadow-xl bg-white/80 backdrop-blur rounded-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-            <div className="flex items-center justify-between">
-              <CardTitle className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <Card className="border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
+          <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm text-indigo-700">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <CardTitle className="flex items-center gap-3 text-lg font-semibold text-indigo-800">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                   </svg>
                 </div>
                 Período de Análise
               </CardTitle>
-              
-              <div className="flex items-center gap-2 bg-white/20 px-3 py-1.5 rounded-lg">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+              <div className="inline-flex items-center gap-2 rounded-lg bg-indigo-100 px-3 py-1.5 text-sm font-semibold text-indigo-700">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
                 <span className="font-bold">{monthNames[selectedMonth - 1]} / {selectedYear}</span>
               </div>
             </div>
           </CardHeader>
-          
-          <CardContent className="pt-6">
-            <div className="flex flex-wrap items-center gap-4">
+
+          <CardContent className="pt-6 pb-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
               {/* Seletor de Mês */}
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Mês</label>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-indigo-900">Mês</label>
                 <div className="relative">
                   <select
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                    className="w-full appearance-none bg-white border-2 border-gray-300 rounded-xl px-4 py-3 pr-10 text-gray-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
+                    className="w-full appearance-none rounded-xl border border-indigo-100 bg-white px-4 py-3 pr-10 text-indigo-900 shadow-sm transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   >
                     {monthNames.map((name, index) => (
                       <option key={index + 1} value={index + 1}>
@@ -222,20 +488,20 @@ export default function Statistics() {
                       </option>
                     ))}
                   </select>
-                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
               </div>
-              
+
               {/* Seletor de Ano */}
-              <div className="flex-1 min-w-[200px]">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Ano</label>
+              <div className="flex flex-col gap-2">
+                <label className="text-sm font-semibold text-indigo-900">Ano</label>
                 <div className="relative">
                   <select
                     value={selectedYear}
                     onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    className="w-full appearance-none bg-white border-2 border-gray-300 rounded-xl px-4 py-3 pr-10 text-gray-900 font-medium focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 transition-all"
+                    className="w-full appearance-none rounded-xl border border-indigo-100 bg-white px-4 py-3 pr-10 text-indigo-900 shadow-sm transition-all focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   >
                     {Array.from({ length: 5 }, (_, i) => selectedYear - 2 + i).map((y) => (
                       <option key={y} value={y}>
@@ -243,57 +509,65 @@ export default function Statistics() {
                       </option>
                     ))}
                   </select>
-                  <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="pointer-events-none absolute right-3 top-1/2 h-5 w-5 -translate-y-1/2 text-indigo-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
               </div>
 
               {/* Botões de navegação rápida */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    if (selectedMonth === 1) {
-                      setSelectedMonth(12);
-                      setSelectedYear(selectedYear - 1);
-                    } else {
-                      setSelectedMonth(selectedMonth - 1);
-                    }
-                  }}
-                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
-                  title="Mês anterior"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
-                </button>
-                <button
-                  onClick={() => {
-                    const now = new Date();
-                    setSelectedMonth(now.getMonth() + 1);
-                    setSelectedYear(now.getFullYear());
-                  }}
-                  className="px-4 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-xl transition-colors whitespace-nowrap"
-                  title="Voltar para o mês atual"
-                >
-                  Mês Atual
-                </button>
-                <button
-                  onClick={() => {
-                    if (selectedMonth === 12) {
-                      setSelectedMonth(1);
-                      setSelectedYear(selectedYear + 1);
-                    } else {
-                      setSelectedMonth(selectedMonth + 1);
-                    }
-                  }}
-                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-xl transition-colors"
-                  title="Próximo mês"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
+              <div className="md:col-span-2 xl:col-span-2">
+                <label className="text-sm font-semibold text-indigo-900">Atalhos de navegação</label>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (selectedMonth === 1) {
+                        setSelectedMonth(12);
+                        setSelectedYear(selectedYear - 1);
+                      } else {
+                        setSelectedMonth(selectedMonth - 1);
+                      }
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-white px-4 py-3 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
+                    title="Mês anterior"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                    </svg>
+                    Anterior
+                  </button>
+                  <button
+                    onClick={() => {
+                      const now = new Date();
+                      setSelectedMonth(now.getMonth() + 1);
+                      setSelectedYear(now.getFullYear());
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-3 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+                    title="Voltar para o mês atual"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 7l-1-1m0 0l-1 1m1-1v8m4 4h-4m8-12h3m0 0v3m0-3l-5 5" />
+                    </svg>
+                    Mês atual
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (selectedMonth === 12) {
+                        setSelectedMonth(1);
+                        setSelectedYear(selectedYear + 1);
+                      } else {
+                        setSelectedMonth(selectedMonth + 1);
+                      }
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-xl border border-indigo-100 bg-white px-4 py-3 text-sm font-semibold text-indigo-700 transition-colors hover:bg-indigo-50"
+                    title="Próximo mês"
+                  >
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                    Próximo
+                  </button>
+                </div>
               </div>
             </div>
           </CardContent>
@@ -432,19 +706,207 @@ export default function Statistics() {
           </Card>
         </div>
 
+        <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+          <Card className="xl:col-span-2 border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
+            <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="flex items-center gap-3 text-indigo-800">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18M5 12h14M7 16h10M9 20h6" />
+                    </svg>
+                  </div>
+                  Evolução diária das vendas
+                </CardTitle>
+                <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  {monthLabel}
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="h-[320px]">
+                {hasDailyTrend ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={dailyTrendData} margin={{ left: -10, right: 0, top: 10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="monthlyTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#818cf8" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#e0e7ff" strokeDasharray="4 8" vertical={false} />
+                      <XAxis
+                        dataKey="label"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: '#4338ca', fontSize: 12, fontWeight: 600 }}
+                        interval="preserveStartEnd"
+                      />
+                      <YAxis
+                        tickFormatter={(value) => compactCurrencyFormatter.format(Number(value))}
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: '#4c1d95', fontSize: 12 }}
+                      />
+                      <Tooltip content={renderDailyTooltip} cursor={{ fill: '#eef2ff' }} />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#4f46e5"
+                        strokeWidth={2.5}
+                        fill="url(#monthlyTrendGradient)"
+                        dot={{ r: 3.5, stroke: '#4338ca', strokeWidth: 1 }}
+                        activeDot={{ r: 5, stroke: '#312e81', strokeWidth: 2 }}
+                      />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-100 bg-indigo-50/60 text-center">
+                    <div className="rounded-full bg-indigo-100 p-3 text-indigo-600">
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h11M9 21V3m12 13h-4m0 0l2-2m-2 2l2 2" />
+                      </svg>
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-indigo-700">Sem vendas registradas neste mês</p>
+                    <p className="text-xs text-indigo-500">Registre novas vendas para visualizar a evolução diária.</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-500">Média diária</p>
+                  <p className="mt-1 text-sm font-bold text-indigo-800">
+                    {averageDaily > 0 ? formatCurrency(averageDaily) : '--'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-500">Melhor dia</p>
+                  <p className="mt-1 text-sm font-bold text-emerald-700">
+                    {bestDay ? `Dia ${String(bestDay.day).padStart(2, '0')} • ${formatCurrency(bestDay.total)}` : 'Aguardando vendas'}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Volume de vendas</p>
+                  <p className="mt-1 text-sm font-bold text-slate-700">
+                    {numberFormatter.format(totalSales)} registro{totalSales === 1 ? '' : 's'}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
+            <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <CardTitle className="flex items-center gap-3 text-indigo-800">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3h2m-1 0v18m-7-4h14M5 11h14M5 7h14" />
+                    </svg>
+                  </div>
+                  Ranking por faturamento
+                </CardTitle>
+                <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Top 6 do mês
+                </span>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <div className="h-[320px]">
+                {hasTopEmployeesData ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={topEmployeesChartData}
+                      margin={{ left: -10, right: 10, top: 10, bottom: 0 }}
+                      barSize={32}
+                    >
+                      <CartesianGrid vertical={false} stroke="#e0e7ff" strokeDasharray="4 6" />
+                      <XAxis
+                        dataKey="name"
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: '#4338ca', fontSize: 12, fontWeight: 600 }}
+                      />
+                      <YAxis
+                        tickFormatter={(value) => compactCurrencyFormatter.format(Number(value))}
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: '#4c1d95', fontSize: 12 }}
+                      />
+                      <Tooltip content={renderTopEmployeesTooltip} cursor={{ fill: '#eef2ff' }} />
+                      <Bar dataKey="total" radius={[10, 10, 6, 6]} fill="#6366f1" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-100 bg-slate-50/60 text-center">
+                    <div className="rounded-full bg-indigo-100 p-3 text-indigo-600">
+                      <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                    <p className="mt-3 text-sm font-semibold text-indigo-700">Nenhum colaborador com vendas</p>
+                    <p className="text-xs text-indigo-500">Assim que as vendas forem registradas, o ranking será atualizado automaticamente.</p>
+                  </div>
+                )}
+              </div>
+
+              {hasTopEmployeesData && (
+                <div className="mt-6 space-y-3">
+                  {topEmployeesChartData.slice(0, 3).map((item, index) => {
+                    const podiumStyles = [
+                      'bg-amber-200 text-amber-900',
+                      'bg-slate-200 text-slate-800',
+                      'bg-orange-200 text-orange-900',
+                    ];
+                    const badgeClass = podiumStyles[index] ?? 'bg-indigo-100 text-indigo-700';
+                    const shareWidth = `${Math.min(item.share, 100).toFixed(1)}%`;
+
+                    return (
+                      <div key={item.fullName} className="flex items-center gap-3">
+                        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${badgeClass}`}>
+                          {index + 1}
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-slate-700">{item.fullName}</p>
+                          <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                            <span>{formatCurrency(item.total)}</span>
+                            <span>•</span>
+                            <span>{item.salesCount} venda{item.salesCount === 1 ? '' : 's'}</span>
+                          </div>
+                          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-indigo-100">
+                            <div className="h-full rounded-full bg-indigo-500" style={{ width: shareWidth }} />
+                          </div>
+                        </div>
+                        <span className="text-xs font-semibold text-indigo-600">{item.share.toFixed(1)}%</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+
         {/* Ranking de Funcionários */}
-        <Card className="border-0 shadow-xl bg-white rounded-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-b-0">
+        <Card className="border border-indigo-100 bg-white/95 backdrop-blur rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="border-b border-indigo-100 bg-white/75 backdrop-blur-sm text-indigo-800">
             <div className="flex items-center justify-between flex-wrap gap-4">
-              <CardTitle className="flex items-center gap-3">
-                <div className="w-11 h-11 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <CardTitle className="flex items-center gap-3 text-indigo-800">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
                 <div>
-                  <span className="text-xl font-bold block">Performance por Funcionário - Mensal</span>
-                  <span className="text-xs text-indigo-100 font-medium">
+                  <span className="block text-xl font-bold">Performance por Funcionário - Mensal</span>
+                  <span className="text-xs font-medium text-indigo-500">
                     {monthNames[selectedMonth - 1]} de {selectedYear} • {employeeStats.length} {employeeStats.length === 1 ? 'funcionário' : 'funcionários'}
                   </span>
                 </div>
@@ -454,29 +916,29 @@ export default function Statistics() {
                 {/* Ícone discreto para toggle - clique no ícone de troféu */}
                 <div 
                   onClick={() => setShowCommissions(!showCommissions)}
-                  className="w-8 h-8 flex items-center justify-center cursor-pointer opacity-30 hover:opacity-100 transition-all duration-200"
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-indigo-100 bg-indigo-50 text-indigo-600 transition-all duration-200 hover:bg-indigo-100 hover:text-indigo-700 cursor-pointer"
                   title="Clique para alternar visualização"
                 >
                   {showCommissions ? (
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
                   ) : (
-                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                     </svg>
                   )}
                 </div>
 
                 {/* Ordenação */}
-                <div className="flex gap-1 bg-white/20 p-1 rounded-lg">
+                <div className="flex gap-1 rounded-lg bg-indigo-100 p-1">
                   <button
                     onClick={() => setSortMode('value')}
                     className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
                       sortMode === 'value'
                         ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-white hover:bg-white/10'
+                        : 'text-indigo-600/80 hover:bg-white'
                     }`}
                     title="Ordenar por valor"
                   >
@@ -490,7 +952,7 @@ export default function Statistics() {
                     className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
                       sortMode === 'sales'
                         ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-white hover:bg-white/10'
+                        : 'text-indigo-600/80 hover:bg-white'
                     }`}
                     title="Ordenar por quantidade"
                   >
@@ -504,7 +966,7 @@ export default function Statistics() {
                     className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all flex items-center gap-1.5 ${
                       sortMode === 'name'
                         ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-white hover:bg-white/10'
+                        : 'text-indigo-600/80 hover:bg-white'
                     }`}
                     title="Ordenar por nome"
                   >
@@ -516,13 +978,13 @@ export default function Statistics() {
                 </div>
 
                 {/* Visualização */}
-                <div className="flex gap-1 bg-white/20 p-1 rounded-lg">
+                <div className="flex gap-1 rounded-lg bg-indigo-100 p-1">
                   <button
                     onClick={() => setViewMode('cards')}
                     className={`p-2 rounded-md transition-all ${
                       viewMode === 'cards'
                         ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-white hover:bg-white/10'
+                        : 'text-indigo-600/80 hover:bg-white'
                     }`}
                     title="Visualização em cards"
                   >
@@ -535,7 +997,7 @@ export default function Statistics() {
                     className={`p-2 rounded-md transition-all ${
                       viewMode === 'table'
                         ? 'bg-white text-indigo-600 shadow-sm'
-                        : 'text-white hover:bg-white/10'
+                        : 'text-indigo-600/80 hover:bg-white'
                     }`}
                     title="Visualização em tabela"
                   >
@@ -711,11 +1173,11 @@ export default function Statistics() {
         </Card>
 
         {/* Seção de Relatório Diário */}
-        <Card className="mt-8 border-0 shadow-xl bg-white/90 backdrop-blur rounded-xl overflow-hidden">
-          <CardHeader className="bg-gradient-to-r from-pink-500 to-rose-500 text-white">
-            <CardTitle className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/20 backdrop-blur rounded-xl flex items-center justify-center">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <Card className="mt-10 border border-rose-100 bg-white/95 backdrop-blur rounded-3xl shadow-xl overflow-hidden">
+          <CardHeader className="border-b border-rose-100 bg-white/75 backdrop-blur-sm text-rose-600">
+            <CardTitle className="flex items-center gap-3 text-rose-700">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
@@ -727,7 +1189,7 @@ export default function Statistics() {
             {/* Seletor de Data */}
             <div className="mb-6 flex flex-wrap items-end gap-4">
               <div className="flex-1 min-w-[250px]">
-                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                <label className="mb-2 block text-sm font-semibold text-rose-900">
                   Selecione uma Data para Visualizar o Relatório
                 </label>
                 <div className="relative">
@@ -740,7 +1202,7 @@ export default function Statistics() {
                         setShowDailyReport(true);
                       }
                     }}
-                    className="w-full appearance-none bg-white border-2 border-gray-300 rounded-xl px-4 py-3 pr-10 text-gray-900 font-medium focus:border-pink-500 focus:ring-2 focus:ring-pink-200 transition-all"
+                    className="w-full appearance-none rounded-xl border border-rose-100 bg-white px-4 py-3 pr-10 text-rose-900 shadow-sm transition-all focus:border-rose-400 focus:ring-2 focus:ring-rose-100"
                     placeholder="Selecione uma data"
                   />
                   <svg className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -755,8 +1217,11 @@ export default function Statistics() {
                   setSelectedDate(today);
                   setShowDailyReport(true);
                 }}
-                className="px-6 py-3 bg-gradient-to-r from-pink-500 to-rose-500 hover:from-pink-600 hover:to-rose-600 text-white font-semibold rounded-xl transition-all shadow-lg hover:shadow-xl"
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-rose-500 to-rose-600 px-6 py-3 text-sm font-semibold text-white shadow-lg transition-all hover:from-rose-600 hover:to-rose-700"
               >
+                <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
                 Hoje
               </button>
             </div>
@@ -766,8 +1231,8 @@ export default function Statistics() {
               <div className="space-y-4">
                 {dailySalesQuery.isLoading && (
                   <div className="text-center py-12">
-                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-pink-500 border-t-transparent"></div>
-                    <p className="mt-4 text-gray-600 font-medium">Carregando dados...</p>
+                    <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-rose-400 border-t-transparent"></div>
+                    <p className="mt-4 text-rose-600 font-medium">Carregando dados...</p>
                   </div>
                 )}
 
