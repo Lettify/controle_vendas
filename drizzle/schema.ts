@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, timestamp, decimal, boolean, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, decimal, boolean, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
 
 /**
  * Enums
@@ -42,6 +42,29 @@ export const accessCodes = pgTable("access_codes", {
 
 export type AccessCode = typeof accessCodes.$inferSelect;
 export type InsertAccessCode = typeof accessCodes.$inferInsert;
+
+/**
+ * Dispositivos autorizados para cada código de acesso
+ */
+export const authorizedDevices = pgTable(
+  "authorized_devices",
+  {
+    id: varchar("id", { length: 64 }).primaryKey(),
+    accessCodeId: varchar("access_code_id", { length: 64 }).notNull(),
+    userId: varchar("user_id", { length: 64 }).notNull(),
+    deviceId: varchar("device_id", { length: 128 }).notNull(),
+    deviceName: varchar("device_name", { length: 255 }),
+    registeredAt: timestamp("registered_at", { mode: "date", withTimezone: true }).defaultNow().notNull(),
+    lastSeenAt: timestamp("last_seen_at", { mode: "date", withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    accessCodeIdx: uniqueIndex("authorized_devices_access_code_id_idx").on(table.accessCodeId),
+    deviceIdx: uniqueIndex("authorized_devices_device_id_idx").on(table.deviceId),
+  })
+);
+
+export type AuthorizedDevice = typeof authorizedDevices.$inferSelect;
+export type InsertAuthorizedDevice = typeof authorizedDevices.$inferInsert;
 
 /**
  * Tabela de funcionários

@@ -7,6 +7,8 @@ import { appRouter } from "./routers";
 import { createContext } from "./_core/context";
 
 const app = express();
+// Habilita detecção correta de IP atrás de proxies (útil em produção)
+app.set("trust proxy", 1);
 
 // Configuração CORS para desenvolvimento
 const corsOptions = {

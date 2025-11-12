@@ -10,6 +10,8 @@ import {
   dailySales,
   InsertAccessCode,
   accessCodes,
+  InsertAuthorizedDevice,
+  authorizedDevices,
 } from "../drizzle/schema.js";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -168,6 +170,62 @@ export async function markAccessCodeAsUsed(
       usedBy: userId,
     })
     .where(eq(accessCodes.id, id));
+}
+
+export async function getAuthorizedDeviceByAccessCode(accessCodeId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(authorizedDevices)
+    .where(eq(authorizedDevices.accessCodeId, accessCodeId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getAuthorizedDeviceByDeviceId(deviceId: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+
+  const result = await db
+    .select()
+    .from(authorizedDevices)
+    .where(eq(authorizedDevices.deviceId, deviceId))
+    .limit(1);
+
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function createAuthorizedDevice(
+  device: InsertAuthorizedDevice
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  await db.insert(authorizedDevices).values(device);
+}
+
+export async function touchAuthorizedDevice(
+  id: string,
+  deviceName?: string | null
+): Promise<void> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+
+  const updates: Partial<InsertAuthorizedDevice> = {
+    lastSeenAt: new Date(),
+  };
+
+  if (deviceName !== undefined) {
+    updates.deviceName = deviceName ?? null;
+  }
+
+  await db
+    .update(authorizedDevices)
+    .set(updates)
+    .where(eq(authorizedDevices.id, id));
 }
 
 // ============= EMPLOYEE FUNCTIONS =============

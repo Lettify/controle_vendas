@@ -1,16 +1,112 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { APP_TITLE, APP_LOGO } from "@/const";
+import { APP_TITLE, APP_LOGO, DEVICE_STORAGE_KEY } from "@/const";
+
+async function computeDeviceFingerprint(): Promise<string> {
+  if (typeof window === "undefined") {
+    return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+  }
+
+  const navigatorRef = window.navigator;
+  const screenRef = window.screen;
+  const timezone = (() => {
+    try {
+      return Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    } catch {
+      return "";
+    }
+  })();
+
+  const rawFingerprint = [
+    navigatorRef?.userAgent ?? "",
+    navigatorRef?.language ?? "",
+    navigatorRef?.platform ?? "",
+    screenRef ? `${screenRef.width}x${screenRef.height}x${screenRef.colorDepth}` : "",
+    timezone,
+  ]
+    .filter(Boolean)
+    .join("||");
+
+  const cryptoRef = window.crypto;
+  if (cryptoRef?.subtle && rawFingerprint) {
+    try {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(rawFingerprint);
+      const digest = await cryptoRef.subtle.digest("SHA-256", data);
+      const bytes = Array.from(new Uint8Array(digest));
+      return bytes.map((byte) => byte.toString(16).padStart(2, "0")).join("");
+    } catch {
+      // Ignorar e cair no fallback
+    }
+  }
+
+  if (rawFingerprint) {
+    try {
+      return btoa(rawFingerprint).replace(/[^a-z0-9]/gi, "").slice(0, 64).toLowerCase();
+    } catch {
+      // Ignorar e usar o fallback aleatório
+    }
+  }
+
+  return `${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`;
+}
 
 export default function Login() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
+  const [deviceId, setDeviceId] = useState<string | null>(null);
+  const [deviceLabel, setDeviceLabel] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const utils = trpc.useUtils();
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const initDeviceId = async () => {
+      let resolvedId: string | null = null;
+
+      try {
+        const stored = window.localStorage.getItem(DEVICE_STORAGE_KEY);
+        if (stored) {
+          resolvedId = stored.toLowerCase();
+        } else {
+          const fingerprint = await computeDeviceFingerprint();
+          resolvedId = fingerprint.toLowerCase();
+          window.localStorage.setItem(DEVICE_STORAGE_KEY, resolvedId);
+        }
+      } catch (storageError) {
+        console.error("[Login] Falha ao inicializar deviceId", storageError);
+        const fingerprint = await computeDeviceFingerprint();
+        resolvedId = fingerprint.toLowerCase();
+      }
+
+      if (!cancelled) {
+        setDeviceId(resolvedId);
+        window.sessionStorage.setItem(DEVICE_STORAGE_KEY, resolvedId);
+      }
+    };
+
+    initDeviceId();
+
+    if (typeof navigator !== "undefined") {
+      const platform = navigator.platform || "";
+      const userAgent = navigator.userAgent || "";
+      const label = [platform, userAgent].filter(Boolean).join(" - ").slice(0, 250);
+      setDeviceLabel(label || null);
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   
   const loginMutation = trpc.auth.loginWithCode.useMutation({
     onSuccess: async () => {
@@ -29,8 +125,23 @@ export default function Login() {
       setError("Digite o código de acesso");
       return;
     }
+    const effectiveDeviceId =
+      deviceId ||
+      (typeof window !== "undefined"
+        ? window.sessionStorage.getItem(DEVICE_STORAGE_KEY) ||
+          window.localStorage.getItem(DEVICE_STORAGE_KEY)
+        : null);
+
+    if (!effectiveDeviceId) {
+      setError("Não foi possível identificar o dispositivo. Atualize a página e tente novamente.");
+      return;
+    }
     setError("");
-    loginMutation.mutate({ code: code.toUpperCase() });
+    loginMutation.mutate({
+      code: code.toUpperCase(),
+      deviceId: effectiveDeviceId,
+      deviceLabel: deviceLabel || undefined,
+    });
   };
 
   return (
@@ -107,7 +218,7 @@ export default function Login() {
 
               <Button
                 type="submit"
-                disabled={loginMutation.isPending}
+                disabled={loginMutation.isPending || !deviceId}
                 className="w-full h-14 text-base font-bold bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 shadow-lg hover:shadow-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] rounded-xl"
               >
                 {loginMutation.isPending ? (

@@ -4,6 +4,8 @@ import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import jwt from "jsonwebtoken";
+import { TRPCError } from "@trpc/server";
+import { RateLimiter, RateLimitError } from "./_core/rateLimiter.js";
 import {
   createEmployee,
   getEmployee,
@@ -26,7 +28,16 @@ import {
   markAccessCodeAsUsed,
   upsertUser,
   getUser,
+  createAuthorizedDevice,
+  getAuthorizedDeviceByAccessCode,
+  touchAuthorizedDevice,
 } from "./db.js";
+
+const loginRateLimiter = new RateLimiter({
+  windowMs: 60_000,
+  maxAttempts: 5,
+  lockoutMs: 15 * 60_000,
+});
 
 export const appRouter = router({
   auth: router({
@@ -44,67 +55,144 @@ export const appRouter = router({
 
     // Login com código de acesso
     loginWithCode: publicProcedure
-      .input(z.object({ code: z.string().min(1) }))
+      .input(
+        z.object({
+          code: z.string().min(1),
+          deviceId: z.string().trim().min(8).max(128),
+          deviceLabel: z.string().trim().min(1).max(255).optional(),
+        })
+      )
       .mutation(async ({ input, ctx }) => {
-        console.log('[LOGIN] Tentando login com código:', input.code);
-        const accessCode = await getAccessCodeByCode(input.code);
+        const normalizedCode = input.code.trim();
+        const codeForLogs = normalizedCode.toUpperCase();
+        const deviceId = input.deviceId.trim().toLowerCase();
+        const deviceLabel = input.deviceLabel?.trim() || null;
+
+        console.log('[LOGIN] Tentando login com código:', codeForLogs);
+
+        const limiterKey = `${ctx.req.ip ?? "unknown"}:${deviceId}`;
+
+        const throwFailure = (
+          message: string,
+          code: "UNAUTHORIZED" | "FORBIDDEN" | "NOT_FOUND" = "UNAUTHORIZED"
+        ): never => {
+          try {
+            loginRateLimiter.recordFailure(limiterKey);
+          } catch (error) {
+            if (error instanceof RateLimitError) {
+              throw new TRPCError({
+                code: "TOO_MANY_REQUESTS",
+                message: error.message,
+              });
+            }
+            throw error;
+          }
+          throw new TRPCError({
+            code,
+            message,
+          });
+        };
+
+        try {
+          loginRateLimiter.assertNotLocked(limiterKey);
+        } catch (error) {
+          if (error instanceof RateLimitError) {
+            throw new TRPCError({
+              code: "TOO_MANY_REQUESTS",
+              message: error.message,
+            });
+          }
+          throw error;
+        }
+
+        const accessCode = await getAccessCodeByCode(normalizedCode);
 
         if (!accessCode) {
           console.log('[LOGIN] Código não encontrado no banco');
-          throw new Error("Código inválido");
+          throwFailure("Código inválido");
         }
+        const codeRecord = accessCode!;
 
-        if (!accessCode.isActive) {
+        if (!codeRecord.isActive) {
           console.log('[LOGIN] Código desativado');
-          throw new Error("Código desativado");
+          throwFailure("Código desativado");
         }
 
-        // Verificar expiração apenas se o código não for reutilizável
-        if (!accessCode.isReusable && accessCode.expiresAt && new Date(accessCode.expiresAt) < new Date()) {
+        if (
+          !codeRecord.isReusable &&
+          codeRecord.expiresAt &&
+          new Date(codeRecord.expiresAt) < new Date()
+        ) {
           console.log('[LOGIN] Código expirado');
-          throw new Error("Código expirado");
+          throwFailure("Código expirado");
+        }
+
+        const existingDevice = await getAuthorizedDeviceByAccessCode(codeRecord.id);
+        if (codeRecord.usedAt && !existingDevice) {
+          console.log('[LOGIN] Código utilizado mas sem dispositivo registrado');
+          throwFailure(
+            "Este código já está vinculado a outro dispositivo.",
+            "FORBIDDEN"
+          );
+        }
+
+        if (existingDevice && existingDevice.deviceId !== deviceId) {
+          console.log('[LOGIN] Código já vinculado a outro dispositivo');
+          throwFailure("Este código já está vinculado a outro dispositivo.", "FORBIDDEN");
         }
 
         let userId: string;
 
-        // Se o código já foi usado e for reutilizável, reutilizar o usuário existente
-        if (accessCode.usedAt && accessCode.usedBy) {
-          if (!accessCode.isReusable) {
+        if (codeRecord.usedAt && codeRecord.usedBy) {
+          if (!codeRecord.isReusable) {
             console.log('[LOGIN] Código já usado e não é reutilizável');
-            throw new Error("Código já foi utilizado");
+            throwFailure("Código já foi utilizado", "FORBIDDEN");
           }
 
-          console.log('[LOGIN] Reutilizando usuário:', accessCode.usedBy);
-          userId = accessCode.usedBy;
+          console.log('[LOGIN] Reutilizando usuário:', codeRecord.usedBy);
+          userId = codeRecord.usedBy;
           const existingUser = await getUser(userId);
-          
+
           if (existingUser) {
-            // Atualizar lastSignedIn
             await upsertUser({
               id: userId,
               lastSignedIn: new Date(),
             });
           } else {
             console.log('[LOGIN] Usuário não encontrado');
-            throw new Error("Usuário não encontrado");
+            throwFailure("Usuário não encontrado", "NOT_FOUND");
           }
         } else {
-          // Criar novo usuário com os dados do código de acesso
           console.log('[LOGIN] Criando novo usuário');
           userId = uuidv4();
           await upsertUser({
             id: userId,
-            name: accessCode.userName || `Usuário ${input.code}`,
-            email: accessCode.userEmail || null,
+            name: codeRecord.userName || `Usuário ${codeForLogs}`,
+            email: codeRecord.userEmail || null,
             role: "user",
             lastSignedIn: new Date(),
           });
-
-          // Marcar código como utilizado
-          await markAccessCodeAsUsed(accessCode.id, userId);
         }
 
-        // Criar token JWT
+        await markAccessCodeAsUsed(codeRecord.id, userId);
+
+        const deviceName = deviceLabel && deviceLabel.length > 0 ? deviceLabel : null;
+        if (!existingDevice) {
+          await createAuthorizedDevice({
+            id: uuidv4(),
+            accessCodeId: codeRecord.id,
+            userId,
+            deviceId,
+            ...(deviceName ? { deviceName } : {}),
+          });
+          console.log('[LOGIN] Dispositivo registrado para o código', codeRecord.code);
+        } else {
+          await touchAuthorizedDevice(existingDevice.id, deviceName);
+          console.log('[LOGIN] Dispositivo autorizado reconhecido', existingDevice.deviceId);
+        }
+
+        loginRateLimiter.reset(limiterKey);
+
         const token = jwt.sign(
           { userId },
           process.env.JWT_SECRET || "secret",
@@ -112,7 +200,6 @@ export const appRouter = router({
         );
         console.log('[LOGIN] Token JWT criado:', token.substring(0, 20) + '...');
 
-        // Salvar cookie
         const cookieOptions = getSessionCookieOptions(ctx.req);
         console.log('[LOGIN] Opções do cookie:', cookieOptions);
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
