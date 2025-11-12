@@ -1,11 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLocation } from "wouter";
-import Navbar from "@/components/Navbar";
+import { usePageHeader } from "@/contexts/PageHeaderContext";
 
 const COMPANY_ID = "default-company";
 
@@ -18,6 +18,12 @@ function formatDateWithoutTimezone(dateString: string): string {
 export default function AdminAccessCodes() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
+  const { setTitle, setShowUserInfo } = usePageHeader();
+  
+  useEffect(() => {
+    setTitle("Códigos de Acesso");
+    setShowUserInfo(true);
+  }, [setShowUserInfo, setTitle]);
   const [customCode, setCustomCode] = useState("");
   const [description, setDescription] = useState("");
   const [userName, setUserName] = useState("");
@@ -67,8 +73,6 @@ export default function AdminAccessCodes() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
-      <Navbar title="Códigos de Acesso" showUserInfo={true} />
-
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Card de Gerar Novo Código */}
         <Card className="mb-8 border-purple-100 shadow-lg">

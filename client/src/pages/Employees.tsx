@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { useLocation } from "wouter";
-import Navbar from "@/components/Navbar";
+import { usePageHeader } from "@/contexts/PageHeaderContext";
 
 const COMPANY_ID = "default-company";
 
@@ -77,6 +77,12 @@ function clampPercentage(value: number) {
 export default function Employees() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
+  const { setTitle, setShowUserInfo } = usePageHeader();
+  
+  useEffect(() => {
+    setTitle("Equipe");
+    setShowUserInfo(true);
+  }, [setShowUserInfo, setTitle]);
   const [newEmployee, setNewEmployee] = useState({ name: "", email: "", phone: "", position: "" });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'mosaic' | 'table'>('mosaic');
@@ -237,8 +243,6 @@ export default function Employees() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <Navbar title="Equipe" showUserInfo={true} />
-
       <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-10">
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-purple-600 to-blue-700 text-white shadow-2xl">
           <div className="absolute inset-0 opacity-50">

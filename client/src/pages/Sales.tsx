@@ -1,143 +1,122 @@
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "@/hooks/useAuth";
+import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useLocation } from "wouter";
-import Navbar from "@/components/Navbar";
 import EmployeeLink from "@/components/EmployeeLink";
 import { formatCurrency } from "@/lib/utils-commission";
+import {
+  SensitiveSection,
+  SensitiveSectionToggleButton,
+  SensitiveValue,
+} from "@/components/SensitiveValue";
 
 const COMPANY_ID = "default-company";
+
+type StepState = "idle" | "active" | "done";
+
+type ComposerStep = {
+  id: number;
+  label: string;
+  description: string;
+  state: StepState;
+};
+
+type DailySale = {
+  id: string;
+  employeeId: string;
+  date: string;
+  amount: string | number;
+  createdAt: string | null;
+};
+
+type EmployeeSalesSnapshot = {
+  total: number;
+  count: number;
+};
+
+function getLocalDateString(date: Date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getDaysInMonth(year: number, monthIndex: number) {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+function getCalendarDays(year: number, monthIndex: number): (number | null)[] {
+  const firstWeekday = new Date(year, monthIndex, 1).getDay();
+  const totalDays = getDaysInMonth(year, monthIndex);
+  const days: (number | null)[] = [];
+
+  for (let i = 0; i < firstWeekday; i += 1) {
+    days.push(null);
+  }
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    days.push(day);
+  }
+
+  while (days.length % 7 !== 0) {
+    days.push(null);
+  }
+
+  return days;
+}
+
+function capitalizeFirst(text: string) {
+  if (!text) {
+    return text;
+  }
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
 
 export default function Sales() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
-  
-  // Função auxiliar para obter data local no formato YYYY-MM-DD
-  const getLocalDateString = (date: Date = new Date()) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
-  };
-  
-  const [selectedDate, setSelectedDate] = useState(getLocalDateString());
-  const [selectedEmployee, setSelectedEmployee] = useState("");
-  const [amount, setAmount] = useState("");
-  const [dayInput, setDayInput] = useState(new Date().getDate().toString());
-  const [showCalendar, setShowCalendar] = useState(false);
-  // const [, setExpandedEmployees] = useState<Set<string>>(new Set());
-  const [salesModalOpen, setSalesModalOpen] = useState(false);
-  const [selectedEmployeeSales, setSelectedEmployeeSales] = useState<any>(null);
 
-  // Toggle expansão de vendas de um funcionário
-  // const toggleEmployeeExpanded = (employeeId: string) => {
-  //   setExpandedEmployees(prev => {
-  //     const newSet = new Set(prev);
-  //     if (newSet.has(employeeId)) {
-  //       newSet.delete(employeeId);
-  //     } else {
-  //       newSet.add(employeeId);
-  //     }
-  //     return newSet;
-  //   });
-  // };
-
-  // Abrir modal com vendas do funcionário
-  const openSalesModal = (item: any) => {
-    setSelectedEmployeeSales(item);
-    setSalesModalOpen(true);
-  };
-
-  // Sincronizar dayInput com selectedDate quando o componente montar ou selectedDate mudar
-  useEffect(() => {
-    const [, , day] = selectedDate.split('-');
-    setDayInput(parseInt(day).toString());
-  }, [selectedDate]);
-
-  // Atualizar selectedDate quando dayInput mudar
-  const handleDayChange = (day: string) => {
-    setDayInput(day);
-    const dayNum = parseInt(day);
-    if (dayNum >= 1 && dayNum <= 31) {
-      // Parse da data atual adicionando T00:00:00 para evitar problemas de timezone
-      const [year, month] = selectedDate.split('-').map(Number);
-      const newDate = new Date(year, month - 1, dayNum);
-      
-      // Validar se a data é válida para o mês atual
-      if (newDate.getMonth() === month - 1) {
-        const formattedDate = `${year}-${String(month).padStart(2, '0')}-${String(dayNum).padStart(2, '0')}`;
-        setSelectedDate(formattedDate);
-      }
-    }
-  };
-
-  // Mudar mês
-  const changeMonth = (delta: number) => {
-    const [year, month, day] = selectedDate.split('-').map(Number);
-    const newDate = new Date(year, month - 1 + delta, day);
-    const formattedDate = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDate.getDate()).padStart(2, '0')}`;
-    setSelectedDate(formattedDate);
-    setDayInput(newDate.getDate().toString());
-  };
-
-  // Mudar ano
-  const changeYear = (delta: number) => {
-    const [year, month, day] = selectedDate.split('-').map(Number);
-    const newDate = new Date(year + delta, month - 1, day);
-    const formattedDate = `${newDate.getFullYear()}-${String(newDate.getMonth() + 1).padStart(2, '0')}-${String(newDate.getDate()).padStart(2, '0')}`;
-    setSelectedDate(formattedDate);
-    setDayInput(newDate.getDate().toString());
-  };
-
-  // Gerar dias do calendário
-  const generateCalendarDays = () => {
-    const [year, month] = selectedDate.split('-').map(Number);
-    
-    const firstDay = new Date(year, month - 1, 1);
-    const lastDay = new Date(year, month, 0);
-    const daysInMonth = lastDay.getDate();
-    const startingDayOfWeek = firstDay.getDay();
-    
-    const days = [];
-    
-    // Dias vazios antes do primeiro dia
-    for (let i = 0; i < startingDayOfWeek; i++) {
-      days.push(null);
-    }
-    
-    // Dias do mês
-    for (let day = 1; day <= daysInMonth; day++) {
-      days.push(day);
-    }
-    
-    return days;
-  };
-
-  const calendarDays = generateCalendarDays();
-  const [year, month, day] = selectedDate.split('-').map(Number);
-  const selectedDay = day;
-  const currentDate = new Date(year, month - 1, day);
-  // const monthName = currentDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-
-  const employeesQuery = trpc.employees.listActive.useQuery({ companyId: COMPANY_ID });
-  const salesQuery = trpc.sales.getByCompany.useQuery({
-    companyId: COMPANY_ID,
-    startDate: selectedDate,
-    endDate: selectedDate,
+  const [currentDate, setCurrentDate] = useState(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    return base;
   });
 
-  // Refetch quando a data mudar
-  useEffect(() => {
-    salesQuery.refetch();
-  }, [selectedDate]);
+  const [selectedDay, setSelectedDay] = useState(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    return base.getDate();
+  });
+
+  const [dayInput, setDayInput] = useState(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    return String(base.getDate()).padStart(2, "0");
+  });
+
+  const [isEditingDay, setIsEditingDay] = useState(false);
+
+  const [selectedDate, setSelectedDate] = useState(() => getLocalDateString());
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState("");
+  const [amount, setAmount] = useState("");
+
+  const employeesQuery = trpc.employees.listActive.useQuery({ companyId: COMPANY_ID });
+
+  const salesQuery = trpc.sales.getByCompany.useQuery(
+    {
+      companyId: COMPANY_ID,
+      startDate: selectedDate,
+      endDate: selectedDate,
+    },
+    { enabled: !!selectedDate },
+  );
 
   const createSaleMutation = trpc.sales.create.useMutation({
     onSuccess: () => {
       setAmount("");
-      // Não limpar selectedEmployee para manter o funcionário selecionado
       salesQuery.refetch();
     },
   });
@@ -148,66 +127,265 @@ export default function Sales() {
     },
   });
 
-  const handleDeleteSale = (saleId: string) => {
-    if (confirm('Tem certeza que deseja remover esta venda?')) {
-      deleteSaleMutation.mutate({ id: saleId });
+  const employees = employeesQuery.data ?? [];
+
+  const employeesById = useMemo(
+    () => new Map(employees.map((employee) => [employee.id, employee])),
+    [employees],
+  );
+
+  const calendarDays = useMemo(
+    () => getCalendarDays(currentDate.getFullYear(), currentDate.getMonth()),
+    [currentDate],
+  );
+
+  const clampDay = (value: number) => {
+    const normalized = Math.floor(value);
+    const daysInMonth = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
+    return Math.min(Math.max(normalized, 1), daysInMonth);
+  };
+
+  const handleDayChange = (value: string) => {
+    setIsEditingDay(true);
+
+    const digitsOnly = value.replace(/\D/g, "");
+    const trimmed = digitsOnly.slice(0, 2);
+
+    setDayInput(trimmed);
+
+    if (trimmed.length === 0) {
+      return;
+    }
+
+    const numeric = Number(trimmed);
+    if (!Number.isFinite(numeric) || numeric === 0) {
+      return;
+    }
+
+    const normalized = clampDay(numeric);
+    setSelectedDay(normalized);
+
+    const nextDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), normalized);
+    setSelectedDate(getLocalDateString(nextDate));
+
+    if (trimmed.length === 2 || normalized !== numeric) {
+      setDayInput(String(normalized).padStart(2, "0"));
     }
   };
 
-  const handleAddSale = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedEmployee || !amount) return;
+  const handleDayBlur = () => {
+    setIsEditingDay(false);
+
+    if (dayInput.length === 0) {
+      setDayInput(String(selectedDay).padStart(2, "0"));
+      return;
+    }
+
+    const numeric = Number(dayInput);
+    if (!Number.isFinite(numeric) || numeric === 0) {
+      setDayInput(String(selectedDay).padStart(2, "0"));
+      return;
+    }
+
+    const normalized = clampDay(numeric);
+    if (normalized !== selectedDay) {
+      setSelectedDay(normalized);
+      const nextDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), normalized);
+      setSelectedDate(getLocalDateString(nextDate));
+    }
+
+    setDayInput(String(normalized).padStart(2, "0"));
+  };
+
+  const changeMonth = (offset: number) => {
+    setCurrentDate((prev) => {
+      const next = new Date(prev);
+      next.setMonth(prev.getMonth() + offset);
+      next.setHours(0, 0, 0, 0);
+      return next;
+    });
+  };
+
+  const changeYear = (offset: number) => {
+    setCurrentDate((prev) => {
+      const next = new Date(prev);
+      next.setFullYear(prev.getFullYear() + offset);
+      next.setHours(0, 0, 0, 0);
+      return next;
+    });
+  };
+
+  const handleCalendarDayClick = (day: number) => {
+    setSelectedDay(day);
+    const nextDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+    setSelectedDate(getLocalDateString(nextDate));
+    setShowCalendar(false);
+    setIsEditingDay(false);
+    setDayInput(String(day).padStart(2, "0"));
+  };
+
+  const handleAddSale = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!selectedEmployee || !amount) {
+      return;
+    }
+
+    const parsed = Number(amount);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return;
+    }
 
     createSaleMutation.mutate({
       employeeId: selectedEmployee,
       companyId: COMPANY_ID,
       date: selectedDate,
-      amount: parseFloat(amount),
+      amount: parsed,
     });
   };
 
-  // Agrupar vendas por funcionário e calcular totais
-  const employeeRanking = useMemo(() => {
-    if (!salesQuery.data || !employeesQuery.data) return [];
+  const handleDeleteSale = (saleId: string) => {
+    if (!saleId) {
+      return;
+    }
 
-    const salesByEmployee = salesQuery.data.reduce((acc, sale) => {
-      const employeeId = sale.employeeId;
-      if (!acc[employeeId]) {
-        acc[employeeId] = {
-          employeeId,
-          sales: [],
-          total: 0,
-        };
+    if (typeof window !== "undefined") {
+      const confirmRemoval = window.confirm("Tem certeza que deseja remover esta venda?");
+      if (!confirmRemoval) {
+        return;
       }
-      acc[employeeId].sales.push(sale);
-      acc[employeeId].total += parseFloat(sale.amount as any);
-      return acc;
-    }, {} as Record<string, { employeeId: string; sales: any[]; total: number }>);
+    }
 
-    // Criar ranking com informações do funcionário
-    const ranking = Object.values(salesByEmployee).map((item) => {
-      const employee = employeesQuery.data.find((emp) => emp.id === item.employeeId);
-      return {
-        ...item,
-        employee,
-      };
-    });
+    deleteSaleMutation.mutate({ id: saleId });
+  };
 
-    // Ordenar por total (maior para menor)
-    return ranking.sort((a, b) => b.total - a.total);
-  }, [salesQuery.data, employeesQuery.data]);
+  const salesByEmployee = useMemo(() => {
+    if (!salesQuery.data) {
+      return new Map<string, EmployeeSalesSnapshot>();
+    }
 
-  // Timeline de vendas recentes (ordenadas por horário de criação)
+    const grouped = new Map<string, EmployeeSalesSnapshot>();
+
+    for (const sale of salesQuery.data) {
+      const amountValue =
+        typeof sale.amount === "number" ? sale.amount : parseFloat(String(sale.amount));
+      if (Number.isNaN(amountValue)) {
+        continue;
+      }
+
+      const snapshot = grouped.get(sale.employeeId);
+      if (snapshot) {
+        snapshot.total += amountValue;
+        snapshot.count += 1;
+      } else {
+        grouped.set(sale.employeeId, { total: amountValue, count: 1 });
+      }
+    }
+
+    return grouped;
+  }, [salesQuery.data]);
+
   const recentSales = useMemo(() => {
-    if (!salesQuery.data || !employeesQuery.data) return [];
-    
+    if (!salesQuery.data) {
+      return [] as Array<DailySale & { employee?: { id: string; name: string; position?: string | null } }>;
+    }
+
     return [...salesQuery.data]
-      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-      .map(sale => ({
+      .sort((a, b) => {
+        const dateA = new Date(a.createdAt ?? `${a.date}T00:00:00`).getTime();
+        const dateB = new Date(b.createdAt ?? `${b.date}T00:00:00`).getTime();
+        return dateB - dateA;
+      })
+      .map((sale) => ({
         ...sale,
-        employee: employeesQuery.data.find(emp => emp.id === sale.employeeId)
+        employee: employeesById.get(sale.employeeId),
       }));
-  }, [salesQuery.data, employeesQuery.data]);
+  }, [employeesById, salesQuery.data]);
+
+  const parsedAmount = amount ? Number(amount) : null;
+  const isTodaySelected = selectedDate === getLocalDateString();
+  const todayLabel = capitalizeFirst(
+    new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(new Date()),
+  );
+
+  const selectedDateLabel = useMemo(() => {
+    const reference = new Date(`${selectedDate}T00:00:00`);
+    return capitalizeFirst(
+      reference.toLocaleDateString("pt-BR", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    );
+  }, [selectedDate]);
+
+  const composerSteps = useMemo<ComposerStep[]>(() => {
+    const employeeName = employeesById.get(selectedEmployee)?.name ?? "";
+
+    return [
+      {
+        id: 1,
+        label: "Data escolhida",
+        description: selectedDateLabel,
+        state: "done" as const,
+      },
+      {
+        id: 2,
+        label: selectedEmployee ? "Colaborador definido" : "Selecione o colaborador",
+        description: selectedEmployee ? employeeName : "Escolha alguém para continuar",
+        state: selectedEmployee ? ("done" as const) : ("active" as const),
+      },
+      {
+        id: 3,
+        label: selectedEmployee ? "Valor da venda" : "Aguardando colaborador",
+        description: selectedEmployee
+          ? parsedAmount
+            ? formatCurrency(parsedAmount)
+            : "Informe o valor para concluir"
+          : "Selecione quem vendeu",
+        state: selectedEmployee ? (parsedAmount ? "done" : "active") : "idle",
+      },
+    ];
+  }, [employeesById, parsedAmount, selectedDateLabel, selectedEmployee]);
+
+  const selectedEmployeeDetails = selectedEmployee
+    ? employeesById.get(selectedEmployee)
+    : undefined;
+
+  const selectedEmployeeSnapshot = selectedEmployee
+    ? salesByEmployee.get(selectedEmployee)
+    : undefined;
+
+  useEffect(() => {
+    const daysInMonth = getDaysInMonth(currentDate.getFullYear(), currentDate.getMonth());
+    let normalizedDay = selectedDay;
+
+    if (selectedDay > daysInMonth) {
+      normalizedDay = daysInMonth;
+      setSelectedDay(normalizedDay);
+    }
+
+    const nextDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), normalizedDay);
+    const nextDateString = getLocalDateString(nextDate);
+
+    if (selectedDate !== nextDateString) {
+      setSelectedDate(nextDateString);
+    }
+
+    if (!isEditingDay) {
+      setDayInput(String(normalizedDay).padStart(2, "0"));
+    }
+  }, [currentDate, selectedDay, selectedDate, isEditingDay]);
+
+  useEffect(() => {
+    if (!selectedEmployee) {
+      return;
+    }
+
+    if (!employeesById.has(selectedEmployee)) {
+      setSelectedEmployee("");
+    }
+  }, [employeesById, selectedEmployee]);
 
   if (!user) {
     navigate("/login");
@@ -215,678 +393,527 @@ export default function Sales() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-50">
-      <Navbar title="Registrar Vendas" showUserInfo={true} />
-
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-        {/* Seções de Operação - Nova Venda e Últimas Vendas */}
-        <div className="flex justify-center mb-4">
-          <div className="grid grid-cols-1 lg:grid-cols-[450px_480px] gap-4">
-          {/* Formulário de Nova Venda */}
-          <Card className="border-0 shadow-xl rounded-xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-teal-500 to-cyan-600 text-white relative overflow-hidden">
-              {/* Decorative elements */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
-              
-              <CardTitle className="relative z-10 flex items-center gap-3">
-                <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
-                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-teal-50 to-slate-100">
+      <main className="max-w-7xl mx-auto px-3 py-4 sm:px-4 sm:py-6 md:px-6 md:py-8 lg:px-8 lg:py-12 space-y-6 sm:space-y-8 lg:space-y-10">
+        <section className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-600 via-emerald-500 to-cyan-500 text-white shadow-xl sm:rounded-3xl lg:rounded-[32px]">
+          <div className="absolute inset-0">
+            <div className="absolute -top-8 -right-12 h-32 w-32 rounded-full bg-white/15 blur-2xl sm:-top-16 sm:-right-24 sm:h-56 sm:w-56 sm:blur-3xl" />
+            <div className="absolute top-1/2 left-4 h-32 w-32 -translate-y-1/2 rounded-full bg-emerald-200/25 blur-2xl sm:left-10 sm:h-48 sm:w-48 sm:blur-3xl" />
+            <div className="absolute bottom-0 right-1/4 h-40 w-40 translate-y-1/3 rounded-full bg-white/10 blur-2xl sm:h-72 sm:w-72 sm:blur-3xl" />
+          </div>
+          <div className="relative grid gap-6 px-4 py-6 sm:gap-8 sm:px-6 sm:py-8 md:px-10 md:py-10 lg:px-14 lg:py-12 lg:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="space-y-4 sm:space-y-6">
+              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 text-xs font-semibold text-white/90 backdrop-blur-sm sm:px-5 sm:py-1.5 sm:text-sm">
+                <span className="h-1.5 w-1.5 rounded-full bg-lime-300 animate-pulse sm:h-2 sm:w-2" />
+                Ritual diário • {todayLabel}
+              </span>
+              <h1 className="text-2xl font-black leading-tight tracking-tight sm:text-3xl lg:text-[2.75rem]">
+                Registre cada venda com foco no essencial.
+              </h1>
+              <p className="text-xs text-white/85 sm:text-sm md:text-base lg:max-w-xl">
+                Ajuste a data do dia, escolha quem vendeu e confirme o valor. Só o que importa para registrar rápido.
+              </p>
+              <div className="grid gap-3 sm:grid-cols-2 sm:gap-4">
+                <div className="rounded-xl border border-white/25 bg-white/10 p-4 shadow-lg backdrop-blur-lg sm:rounded-2xl sm:p-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/75 sm:text-xs sm:tracking-[0.28em]">Dia escolhido</p>
+                  <p className="mt-1.5 text-base font-semibold text-white capitalize sm:mt-2 sm:text-lg">{selectedDateLabel}</p>
+                  <p className="mt-1.5 text-[11px] text-white/75 sm:mt-2 sm:text-xs">
+                    {isTodaySelected ? "Foco nas vendas de hoje." : "Revendo um dia anterior."}
+                  </p>
                 </div>
-                <span className="text-lg font-bold">Nova Venda</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-3 pb-4 px-4">
-              {/* Seleção de Data */}
-              <div className="mb-3">
-                <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Data das Vendas
-                </label>
-                
-                {/* Input de dia + Botão de calendário + Data completa */}
-                <div className="flex gap-2 mb-2">
-                  <div className="w-28 relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-teal-600 font-semibold text-[10px] uppercase tracking-wide pointer-events-none z-10">Dia</span>
-                    <Input
-                      type="number"
-                      min="1"
-                      max="31"
-                      value={dayInput}
-                      onChange={(e) => handleDayChange(e.target.value)}
-                      className="w-full text-center text-2xl font-black h-12 px-4 pl-10 border-2 border-gray-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 rounded-xl bg-gradient-to-br from-white to-gray-50 shadow-sm hover:shadow-md transition-all"
-                      placeholder="00"
-                    />
+                <div className="rounded-xl border border-white/20 bg-white/10 p-4 shadow-lg backdrop-blur-lg sm:rounded-2xl sm:p-5">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/75 sm:text-xs sm:tracking-[0.28em]">Próximo passo</p>
+                  <p className="mt-1.5 text-xs text-white/90 sm:mt-2 sm:text-sm">
+                    {selectedEmployee
+                      ? amount
+                        ? "Valor pronto para registrar."
+                        : `Informe o valor da venda de ${selectedEmployeeDetails?.name ?? "quem vendeu"}.`
+                      : "Escolha um colaborador para liberar o valor."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-white/20 bg-white/10 p-4 shadow-lg backdrop-blur-lg sm:rounded-[28px] sm:p-6">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70 sm:text-xs sm:tracking-[0.28em]">Status rápido</p>
+              <h2 className="mt-2 text-lg font-semibold text-white sm:mt-3 sm:text-xl">Passos do registro</h2>
+              <div className="mt-4 space-y-2 sm:mt-6 sm:space-y-3">
+                {composerSteps.map((step) => (
+                  <ComposerStepPill key={step.id} step={step} />
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="grid gap-4 sm:gap-6 xl:grid-cols-[320px_minmax(0,1fr)_360px]">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="rounded-2xl border border-emerald-100/70 bg-white/85 shadow-lg backdrop-blur-sm sm:rounded-3xl">
+              <div className="flex items-center justify-between px-4 pt-4 sm:px-6 sm:pt-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-emerald-500 sm:text-xs sm:tracking-[0.28em]">Passo 1</p>
+                  <h2 className="mt-0.5 text-base font-semibold text-slate-900 sm:mt-1 sm:text-lg">Escolha o dia das vendas</h2>
+                </div>
+                {isTodaySelected && (
+                  <span className="rounded-full bg-emerald-100/80 px-2 py-0.5 text-[10px] font-medium text-emerald-600 sm:px-3 sm:py-1 sm:text-xs">Hoje</span>
+                )}
+              </div>
+              <div className="px-4 pb-4 pt-3 space-y-3 sm:px-6 sm:pb-6 sm:pt-4 sm:space-y-4">
+                <div className="flex flex-col gap-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                    <div className="relative flex-1 lg:max-w-xs">
+                      <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-500">
+                        Dia
+                      </span>
+                      <Input
+                        type="text"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        maxLength={2}
+                        value={dayInput}
+                        onChange={(e) => handleDayChange(e.target.value)}
+                        onFocus={() => setIsEditingDay(true)}
+                        onBlur={handleDayBlur}
+                        className="w-full rounded-2xl border-2 border-emerald-100 bg-gradient-to-br from-white to-emerald-50 py-5 pl-20 pr-5 text-center text-4xl font-black leading-none text-emerald-700 shadow-sm transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                        placeholder="00"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowCalendar((prev) => !prev)}
+                      className={`flex h-14 w-full items-center justify-center rounded-2xl border-2 text-sm font-semibold transition lg:w-16 ${
+                        showCalendar
+                          ? "border-transparent bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-lg"
+                          : "border-emerald-100 bg-white text-emerald-600 shadow-sm hover:border-emerald-300 hover:bg-emerald-50"
+                      }`}
+                      title="Abrir calendário"
+                    >
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <span className="lg:hidden">Calendário</span>
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowCalendar(!showCalendar)}
-                    className={`w-12 h-12 rounded-xl transition-all shadow-md hover:shadow-lg flex items-center justify-center flex-shrink-0 ${
-                      showCalendar 
-                        ? 'bg-gradient-to-br from-teal-500 to-cyan-600 text-white scale-105' 
-                        : 'bg-white text-teal-600 hover:bg-gradient-to-br hover:from-teal-50 hover:to-cyan-50 border-2 border-gray-200 hover:border-teal-300'
-                    }`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </button>
-                  <div className="flex-1 bg-gradient-to-r from-teal-50 to-cyan-50 border border-teal-200 rounded-xl px-3 flex items-center">
-                    <p className="text-sm font-semibold text-teal-800 capitalize">
-                      {new Date(selectedDate + 'T00:00:00').toLocaleDateString('pt-BR', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
+                  <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-500/80">
+                    Ajuste o dia sempre que precisar revisar vendas anteriores sem perder o foco de hoje.
+                  </p>
+                  <div className="rounded-2xl border border-emerald-100/80 bg-emerald-50/70 px-6 py-5 shadow-inner">
+                    <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-600">Resumo</p>
+                    <p className="mt-3 text-base font-semibold text-emerald-800 capitalize leading-snug">
+                      {selectedDateLabel}
+                    </p>
+                    <p className="mt-3 text-xs text-emerald-600/85 leading-relaxed">
+                      {isTodaySelected
+                        ? "Você está trabalhando com as vendas de hoje, mantendo o ritmo certo."
+                        : "Revise as vendas desse dia com calma e retorne ao presente quando quiser."}
                     </p>
                   </div>
                 </div>
 
-                {/* Calendário */}
                 {showCalendar && (
-                  <div className="bg-white border-2 border-teal-200 rounded-lg p-4 shadow-lg">
-                    {/* Controles de navegação de ano */}
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="rounded-2xl border-2 border-emerald-100 bg-white p-4 shadow-lg">
+                    <div className="flex items-center justify-between">
                       <button
                         type="button"
                         onClick={() => changeYear(-1)}
-                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                        className="rounded-full p-1.5 text-emerald-500 transition hover:bg-emerald-50"
                         title="Ano anterior"
                       >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                         </svg>
                       </button>
-                      <span className="text-sm font-bold text-gray-700">{currentDate.getFullYear()}</span>
+                      <p className="text-sm font-semibold text-slate-700">{currentDate.getFullYear()}</p>
                       <button
                         type="button"
                         onClick={() => changeYear(1)}
-                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                        className="rounded-full p-1.5 text-emerald-500 transition hover:bg-emerald-50"
                         title="Próximo ano"
                       >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
                         </svg>
                       </button>
                     </div>
 
-                    {/* Controles de navegação de mês */}
-                    <div className="flex items-center justify-between mb-3">
+                    <div className="mt-2 flex items-center justify-between">
                       <button
                         type="button"
                         onClick={() => changeMonth(-1)}
-                        className="p-2 hover:bg-teal-50 rounded-lg transition-colors"
+                        className="rounded-xl px-3 py-1 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50"
                         title="Mês anterior"
                       >
-                        <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
+                        Anterior
                       </button>
-                      <h3 className="font-bold text-gray-900 capitalize text-base">
-                        {currentDate.toLocaleDateString('pt-BR', { month: 'long' })}
+                      <h3 className="text-base font-bold capitalize text-slate-800">
+                        {currentDate.toLocaleDateString("pt-BR", { month: "long" })}
                       </h3>
                       <button
                         type="button"
                         onClick={() => changeMonth(1)}
-                        className="p-2 hover:bg-teal-50 rounded-lg transition-colors"
+                        className="rounded-xl px-3 py-1 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50"
                         title="Próximo mês"
                       >
-                        <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                        </svg>
+                        Próximo
                       </button>
                     </div>
-                    
-                    {/* Cabeçalho dos dias da semana */}
-                    <div className="grid grid-cols-7 gap-1 mb-2">
-                      {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
-                        <div key={day} className="text-center text-xs font-semibold text-gray-600 py-1">
-                          {day}
+
+                    <div className="mt-4 grid grid-cols-7 gap-1">
+                      {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((dayLabel) => (
+                        <div
+                          key={dayLabel}
+                          className="py-1 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400"
+                        >
+                          {dayLabel}
                         </div>
                       ))}
                     </div>
-                    
-                    {/* Dias do calendário */}
-                    <div className="grid grid-cols-7 gap-1">
-                      {calendarDays.map((day, index) => (
+                    <div className="mt-1 grid grid-cols-7 gap-1">
+                      {calendarDays.map((calendarDay, index) => (
                         <button
                           key={index}
                           type="button"
                           onClick={() => {
-                            if (day) {
-                              handleDayChange(day.toString());
-                              setShowCalendar(false);
+                            if (calendarDay) {
+                              handleCalendarDayClick(calendarDay);
                             }
                           }}
-                          disabled={!day}
-                          className={`aspect-square rounded-lg text-sm font-medium transition-all ${
-                            !day 
-                              ? 'invisible' 
-                              : day === selectedDay
-                              ? 'bg-gradient-to-br from-teal-500 to-emerald-600 text-white shadow-md scale-110 font-bold'
-                              : 'bg-gray-50 hover:bg-teal-50 text-gray-700 hover:text-teal-900 hover:border-2 hover:border-teal-300'
+                          disabled={!calendarDay}
+                          className={`aspect-square rounded-xl text-sm font-semibold transition ${
+                            !calendarDay
+                              ? "invisible"
+                              : calendarDay === selectedDay
+                                ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg"
+                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
                           }`}
                         >
-                          {day}
+                          {calendarDay}
                         </button>
                       ))}
                     </div>
                   </div>
                 )}
               </div>
+            </div>
+          </div>
 
-              {/* Seleção de Funcionário */}
-              <div className="mb-3">
-                <label className="text-sm font-semibold text-gray-700 mb-2 flex items-center gap-2">
-                  <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  Funcionário Selecionado
-                </label>
-                
+          <div className="space-y-4 sm:space-y-6">
+            <div className="rounded-2xl border border-slate-200/60 bg-white/90 shadow-lg backdrop-blur-sm sm:rounded-3xl">
+              <div className="flex items-center justify-between px-4 pt-4 sm:px-6 sm:pt-6">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500 sm:text-xs sm:tracking-[0.28em]">Passo 2</p>
+                  <h2 className="mt-0.5 text-base font-semibold text-slate-900 sm:mt-1 sm:text-lg">Quem realizou a venda?</h2>
+                </div>
+                {selectedEmployee && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedEmployee("")}
+                    className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 transition active:scale-95 active:bg-slate-50 sm:px-3 sm:py-1 sm:text-xs sm:hover:border-slate-300 sm:hover:text-slate-700"
+                  >
+                    Trocar
+                  </button>
+                )}
+              </div>
+              <div className="px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4">
                 {selectedEmployee ? (
-                  <div className="bg-gradient-to-br from-teal-500 to-emerald-600 rounded-xl p-3 shadow-lg">
-                    <div className="flex items-center justify-between">
+                  <div className="rounded-3xl border border-emerald-100 bg-gradient-to-br from-emerald-500/90 to-teal-600/90 p-5 text-white shadow-xl">
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 min-w-[3rem] rounded-full bg-white/20 backdrop-blur-sm border-2 border-white/40 flex items-center justify-center text-white font-bold text-xl shadow-md">
-                          {employeesQuery.data?.find(e => e.id === selectedEmployee)?.name.charAt(0).toUpperCase()}
+                        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/20 text-2xl font-black shadow-lg">
+                          {selectedEmployeeDetails?.name?.charAt(0)?.toUpperCase() ?? ""}
                         </div>
                         <div>
-                          <p className="font-bold text-white text-lg">
-                            {employeesQuery.data?.find(e => e.id === selectedEmployee)?.name}
+                          <p className="text-sm uppercase tracking-wider text-white/70">Colaborador selecionado</p>
+                          <p className="text-xl font-semibold">
+                            {selectedEmployeeDetails?.name ?? "Colaborador"}
                           </p>
-                          <div className="flex items-center gap-1.5 mt-1">
-                            <div className="w-2 h-2 bg-green-300 rounded-full animate-pulse"></div>
-                            <p className="text-xs text-teal-50 font-medium">Pronto para registrar vendas</p>
-                          </div>
+                          <p className="text-xs text-white/75">
+                            {selectedEmployeeDetails?.position ?? "Função não informada"}
+                          </p>
                         </div>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedEmployee("")}
-                        className="text-white hover:bg-white/20 rounded-xl p-2.5 transition-all backdrop-blur-sm border border-white/30"
-                        title="Trocar funcionário"
-                      >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
+                      <div className="rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-sm">
+                        {selectedEmployeeSnapshot ? (
+                          <div className="space-y-1">
+                            <p className="text-xs uppercase tracking-wide text-white/70">Desempenho do dia</p>
+                            <div className="flex items-baseline gap-2">
+                              <span className="text-lg font-semibold text-white">
+                                {formatCurrency(selectedEmployeeSnapshot.total)}
+                              </span>
+                              <span className="text-xs font-medium text-white/70 whitespace-nowrap">
+                                ({selectedEmployeeSnapshot.count} {selectedEmployeeSnapshot.count === 1 ? "venda" : "vendas"})
+                              </span>
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-white/80">Ainda sem vendas neste dia.</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-[350px] overflow-y-auto pr-2">
-                    {employeesQuery.data?.map((emp) => (
-                      <button
-                        key={emp.id}
-                        type="button"
-                        onClick={() => setSelectedEmployee(emp.id)}
-                        className="w-full flex items-center gap-2.5 p-2.5 rounded-xl border-2 border-gray-200 hover:border-teal-400 bg-white hover:bg-gradient-to-br hover:from-teal-50 hover:to-cyan-50 transition-all group shadow-sm hover:shadow-md"
-                      >
-                        <div className="w-10 h-10 min-w-[2.5rem] rounded-full bg-gradient-to-br from-gray-200 to-gray-300 group-hover:from-teal-500 group-hover:to-emerald-600 flex items-center justify-center text-gray-600 group-hover:text-white font-bold text-lg transition-all shadow-sm group-hover:shadow-md group-hover:scale-110">
-                          {emp.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 text-left">
-                          <p className="font-bold text-gray-900 group-hover:text-teal-900 text-base">{emp.name}</p>
-                          {emp.position && (
-                            <p className="text-xs text-gray-500 group-hover:text-teal-600 font-medium mt-0.5">{emp.position}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-teal-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">Selecionar</span>
-                          <svg className="w-5 h-5 text-gray-400 group-hover:text-teal-600 transition-transform group-hover:translate-x-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
+                  <p className="mb-4 text-sm text-slate-500">
+                    Percorra a lista e escolha quem realizou aquela venda especial. Você pode trocar a qualquer momento, o valor fica guardado.
+                  </p>
                 )}
-              </div>
 
-              {/* Formulário de Valor */}
-              {selectedEmployee && (
-                <form onSubmit={handleAddSale} className="space-y-3">
-                  <div>
-                    <label className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <svg className="w-5 h-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Valor da Venda
-                    </label>
-                    <div className="relative">
-                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-teal-600 font-black text-xl">R$</span>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="0,00"
-                        value={amount}
-                        onChange={(e) => setAmount(e.target.value)}
-                        className="w-full text-xl font-black pl-14 pr-4 py-4 border-2 border-gray-200 focus:border-teal-500 focus:ring-2 focus:ring-teal-100 rounded-xl bg-gradient-to-br from-white to-gray-50 shadow-md hover:shadow-lg transition-all"
-                        required
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-
-                  <Button 
-                    type="submit" 
-                    disabled={createSaleMutation.isPending || !amount} 
-                    className="w-full bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-bold py-3 text-base shadow-lg hover:shadow-xl transition-all hover:scale-[1.02] active:scale-[0.98] rounded-xl"
-                  >
-                    {createSaleMutation.isPending ? (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Registrando...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center gap-2">
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                        </svg>
-                        Registrar Venda
-                      </span>
-                    )}
-                  </Button>
-                </form>
-              )}
-
-              {!selectedEmployee && (
-                <div className="mt-4 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl">
-                  <div className="flex items-center justify-center gap-3">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
-                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <p className="text-sm font-semibold text-blue-800">
-                      Selecione um funcionário para começar
-                    </p>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Timeline de Vendas Recentes */}
-          <Card className="border-0 shadow-xl rounded-xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-cyan-500 to-blue-600 text-white relative overflow-hidden">
-              {/* Decorative elements */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
-              
-              <CardTitle className="relative z-10 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <span className="text-lg font-bold">Últimas Vendas</span>
-                </div>
-                {recentSales.length > 0 && (
-                  <span className="text-sm font-semibold bg-white/20 backdrop-blur-sm border border-white/30 px-3 py-1 rounded-lg">
-                    {recentSales.length}
-                  </span>
-                )}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="pt-3 pb-4 px-4">
-              {recentSales.length > 0 ? (
-                <div className="space-y-2 max-h-[500px] overflow-y-auto pr-2">
-                  {recentSales.map((sale) => (
-                    <div 
-                      key={sale.id}
-                      className="group bg-gradient-to-br from-white to-gray-50 rounded-xl p-3 shadow-md border-2 border-gray-100 hover:border-cyan-400 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
-                    >
-                      <div className="flex items-start gap-3">
-                        {/* Avatar */}
-                        <div className="w-10 h-10 min-w-[2.5rem] rounded-full bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-md flex-shrink-0 group-hover:scale-110 group-hover:rotate-6 transition-all duration-200">
-                          {sale.employee?.name.charAt(0).toUpperCase()}
-                        </div>
-                        
-                        {/* Info - Layout vertical */}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2 mb-2">
-                            {sale.employee && (
-                              <EmployeeLink
-                                employeeId={sale.employeeId}
-                                employeeName={sale.employee.name}
-                                className="font-bold text-gray-900 text-base hover:text-cyan-600 transition-colors"
-                              />
-                            )}
-                            <button
-                              onClick={() => handleDeleteSale(sale.id)}
-                              disabled={deleteSaleMutation.isPending}
-                              className="text-red-500 hover:text-white hover:bg-red-500 hover:rotate-12 rounded-lg p-2 opacity-0 group-hover:opacity-100 transition-all duration-200 flex-shrink-0 shadow-sm hover:shadow-md"
-                              title="Remover venda"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                            </button>
-                          </div>
-                          
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-1.5 bg-gray-100 px-2.5 py-1.5 rounded-lg group-hover:bg-cyan-50 transition-colors">
-                              <svg className="w-3.5 h-3.5 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <p className="text-xs font-semibold text-gray-700">
-                                {new Date(sale.createdAt || new Date()).toLocaleTimeString('pt-BR', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit'
-                                })}
-                              </p>
-                            </div>
-                            <span className="text-emerald-600 font-black text-lg whitespace-nowrap bg-emerald-50 px-3 py-1 rounded-lg group-hover:bg-emerald-100 group-hover:scale-105 transition-all duration-200">
-                              {formatCurrency(parseFloat(sale.amount as any))}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-br from-cyan-100 to-blue-100 rounded-full flex items-center justify-center">
-                    <svg className="w-8 h-8 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <p className="text-gray-600 font-semibold mb-1">Nenhuma venda registrada</p>
-                  <p className="text-gray-400 text-sm">As vendas aparecerão aqui em tempo real</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        </div>
-
-        {/* Seção de Ranking - Largura Total Centralizada */}
-        <div className="flex justify-center">
-          <div className="w-full max-w-[930px]">
-          {/* Ranking de Vendas por Funcionário */}
-          <Card className="border-0 shadow-xl rounded-xl overflow-hidden">
-            <CardHeader className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white relative overflow-hidden py-3 px-4">
-              {/* Decorative background elements */}
-              <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full -mr-16 -mt-16"></div>
-              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white opacity-5 rounded-full -ml-12 -mb-12"></div>
-              
-              <div className="relative z-10 flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  {/* Icon container with glassmorphism effect */}
-                  <div className="w-9 h-9 bg-white/20 backdrop-blur-sm rounded-lg flex items-center justify-center shadow-lg border border-white/30">
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  </div>
-                  
-                  {/* Title and subtitle */}
-                  <div>
-                    <CardTitle className="text-white text-base font-bold mb-0.5">
-                      Ranking do Dia
-                    </CardTitle>
-                    <div className="flex items-center gap-1.5 text-emerald-50">
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <span className="text-xs font-medium">{currentDate.toLocaleDateString('pt-BR', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Total amount card */}
-                <div className="bg-white/15 backdrop-blur-md px-4 py-2 rounded-lg border border-white/30 shadow-lg">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-emerald-100 text-[10px] font-semibold uppercase tracking-wide whitespace-nowrap">Total do Dia</p>
-                      <p className="text-xl font-black text-white whitespace-nowrap">
-                        {formatCurrency(employeeRanking.reduce((sum, item) => sum + item.total, 0))}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-2.5 pb-3 px-3">
-              {employeeRanking.length > 0 ? (
-                <div className="space-y-2">
-                  {employeeRanking.map((item, index) => {
-                    return (
-                      <div 
-                        key={item.employeeId} 
-                        className={`relative overflow-hidden rounded-lg transition-all hover:shadow-md ${
-                          index === 0 ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border border-yellow-200' :
-                          index === 1 ? 'bg-gradient-to-r from-gray-50 to-slate-50 border border-gray-200' :
-                          index === 2 ? 'bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200' :
-                          'bg-white border border-gray-200'
-                        }`}
-                      >
-                        <div className="p-2.5">
-                          <div className="flex items-center gap-2.5">
-                            {/* Position Badge - Com ícones SVG */}
-                            <div className={`flex-shrink-0 w-9 h-9 rounded-lg flex items-center justify-center font-bold text-base ${
-                              index === 0 ? 'bg-yellow-400 text-yellow-900' :
-                              index === 1 ? 'bg-gray-400 text-gray-900' :
-                              index === 2 ? 'bg-orange-400 text-orange-900' :
-                              'bg-emerald-500 text-white'
-                            }`}>
-                              {index === 0 ? (
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                              ) : index === 1 ? (
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                              ) : index === 2 ? (
-                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
-                                </svg>
-                              ) : (
-                                index + 1
-                              )}
-                            </div>
-                            
-                            {/* Employee Info - Compacto */}
-                            <div className="flex-1 min-w-0">
-                              {item.employee && (
-                                <EmployeeLink
-                                  employeeId={item.employeeId}
-                                  employeeName={item.employee.name}
-                                  className="text-base font-bold text-gray-900 truncate block mb-0.5"
-                                />
-                              )}
-                              <div className="flex items-center gap-1.5 text-xs text-gray-600">
-                                <span className="font-medium">{item.sales.length} {item.sales.length === 1 ? 'venda' : 'vendas'}</span>
-                                <span className="text-gray-400">•</span>
-                                <span>Média: {formatCurrency(item.total / item.sales.length)}</span>
-                              </div>
-                            </div>
-                            
-                            {/* Total e Botão Ver Vendas */}
-                            <div className="flex items-center gap-2.5">
-                              <div className="text-right">
-                              <span className="text-2xl font-black text-emerald-600">
-                                  {formatCurrency(item.total)}
-                                </span>
-                              </div>
-                              
-                              {/* Botão para ver vendas */}
-                              <button
-                                onClick={() => openSalesModal(item)}
-                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-lg transition-colors flex items-center gap-1 shadow-sm hover:shadow-md"
-                                title="Ver todas as vendas"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                                Ver
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="text-center py-12">
-                  <svg className="w-16 h-16 mx-auto text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-                  </svg>
-                  <p className="text-gray-600 font-medium">Nenhuma venda registrada para esta data</p>
-                  <p className="text-gray-500 text-sm mt-1">Adicione vendas usando o formulário ao lado</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-        </div>
-
-        {/* Modal de Vendas */}
-        {salesModalOpen && selectedEmployeeSales && (
-          <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={() => setSalesModalOpen(false)}
-          >
-            <div 
-              className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[85vh] overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Header do Modal */}
-              <div className="bg-gradient-to-br from-indigo-600 via-purple-600 to-pink-500 text-white px-6 py-5">
-                <div className="flex items-center justify-between">
-                  {/* Info do Funcionário */}
-                  <div className="flex items-center gap-4">
-                    <div className="w-14 h-14 rounded-2xl bg-white/20 backdrop-blur-md border-2 border-white/40 flex items-center justify-center text-2xl font-black shadow-lg">
-                      {selectedEmployeeSales.employee.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-black mb-1">{selectedEmployeeSales.employee.name}</h3>
-                      <div className="flex items-center gap-3 text-sm">
-                        <span className="bg-white/20 px-2.5 py-0.5 rounded-full font-semibold">
-                          {selectedEmployeeSales.sales.length} {selectedEmployeeSales.sales.length === 1 ? 'venda' : 'vendas'}
-                        </span>
-                        <div className="flex items-center gap-1.5">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                          <span className="font-bold">{formatCurrency(selectedEmployeeSales.total)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Stats e Botão Fechar */}
-                  <div className="flex items-center gap-3">
-                    {/* Média por venda */}
-                    <div className="bg-white/15 backdrop-blur-md border border-white/30 rounded-xl px-4 py-2.5 text-center">
-                      <p className="text-xs text-white/80 font-medium mb-0.5">Ticket Médio</p>
-                      <p className="text-lg font-black">
-                        {formatCurrency(selectedEmployeeSales.total / selectedEmployeeSales.sales.length)}
-                      </p>
-                    </div>
-                    
-                    {/* Botão fechar */}
-                    <button
-                      onClick={() => setSalesModalOpen(false)}
-                      className="w-10 h-10 rounded-xl bg-white/20 hover:bg-white/30 border border-white/30 transition-all flex items-center justify-center hover:rotate-90 duration-300"
-                    >
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              
-              {/* Conteúdo do Modal - Lista de Vendas */}
-              <div className="p-6 overflow-y-auto max-h-[calc(85vh-140px)] bg-gradient-to-br from-gray-50 to-slate-50">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {selectedEmployeeSales.sales
-                    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                    .map((sale: any, index: number) => (
-                      <div
-                        key={sale.id}
-                        className="group relative bg-white rounded-xl p-4 border-2 border-gray-200 hover:border-indigo-400 hover:shadow-xl transition-all duration-200 hover:-translate-y-1"
-                      >
-                        {/* Badge de número com gradiente */}
-                        <div className="absolute -top-3 -left-3 w-9 h-9 bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 rounded-xl flex items-center justify-center shadow-lg rotate-3 group-hover:rotate-6 transition-transform">
-                          <span className="text-white font-black text-sm">{index + 1}</span>
-                        </div>
-                        
-                        {/* Valor da venda - Destaque Principal */}
-                        <div className="mb-4 pt-3 pb-3 border-b-2 border-gray-100">
-                          <div className="flex items-baseline gap-2 mb-1">
-                            <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Valor</span>
-                          </div>
-                          <span className="text-2xl font-black text-emerald-600 block">
-                            {formatCurrency(parseFloat(sale.amount as any))}
-                          </span>
-                        </div>
-                        
-                        {/* Horário da venda */}
-                        <div className="mb-4 flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
-                          <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                            <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-                          <div>
-                            <p className="text-xs text-gray-500 font-medium">Horário</p>
-                            <p className="text-sm font-bold text-gray-900">
-                              {new Date(sale.createdAt || new Date()).toLocaleTimeString('pt-BR', { 
-                                hour: '2-digit', 
-                                minute: '2-digit',
-                                second: '2-digit'
-                              })}
-                            </p>
-                          </div>
-                        </div>
-                        
-                        {/* Botão remover - Mais sutil */}
+                {!selectedEmployee && (
+                  <div className="mt-4 max-h-[380px] space-y-2 overflow-y-auto pr-1">
+                    {employees.map((emp) => {
+                      const snapshot = salesByEmployee.get(emp.id);
+                      return (
                         <button
-                          onClick={() => {
-                            handleDeleteSale(sale.id);
-                            if (selectedEmployeeSales.sales.length === 1) {
-                              setSalesModalOpen(false);
-                            }
-                          }}
-                          disabled={deleteSaleMutation.isPending}
-                          className="w-full flex items-center justify-center gap-2 px-3 py-2.5 bg-red-50 hover:bg-red-500 text-red-600 hover:text-white rounded-lg transition-all text-xs font-bold disabled:opacity-50 disabled:cursor-not-allowed border-2 border-red-200 hover:border-red-500"
+                          key={emp.id}
+                          type="button"
+                          onClick={() => setSelectedEmployee(emp.id)}
+                          className="group flex w-full items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg"
                         >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Remover
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200 text-base font-bold text-slate-600 shadow-sm transition group-hover:scale-105 group-hover:from-emerald-500 group-hover:to-teal-500 group-hover:text-white">
+                              {emp.name.charAt(0).toUpperCase()}
+                            </div>
+                            <div>
+                              <p className="text-sm font-semibold text-slate-900 group-hover:text-emerald-600">{emp.name}</p>
+                              {emp.position && (
+                                <p className="text-xs text-slate-500 group-hover:text-emerald-600">{emp.position}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {snapshot ? (
+                              <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-600">
+                                {formatCurrency(snapshot.total)}
+                              </div>
+                            ) : (
+                              <div className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                                Sem vendas hoje
+                              </div>
+                            )}
+                            <svg className="h-4 w-4 text-slate-400 transition group-hover:translate-x-1 group-hover:text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                            </svg>
+                          </div>
                         </button>
-                      </div>
-                    ))}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
+
+            <SensitiveSection>
+              <form onSubmit={handleAddSale} className="rounded-2xl border border-slate-200/60 bg-white/90 shadow-lg backdrop-blur-sm sm:rounded-3xl">
+                <div className="flex items-center justify-between px-4 pt-4 sm:px-6 sm:pt-6">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500 sm:text-xs sm:tracking-[0.28em]">Passo 3</p>
+                    <h2 className="mt-0.5 text-base font-semibold text-slate-900 sm:mt-1 sm:text-lg">Confirme o valor</h2>
+                  </div>
+                  <SensitiveSectionToggleButton className="border-slate-200 bg-slate-50 text-slate-600 active:bg-slate-100 sm:hover:bg-slate-100" />
+                </div>
+                <div className="px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4">
+                  {selectedEmployee ? (
+                    <div className="space-y-4">
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Valor da venda</label>
+                        <div className="relative mt-2">
+                          <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-lg font-black text-emerald-600">R$</span>
+                          <Input
+                            type="number"
+                            step="0.01"
+                            placeholder="0,00"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                            className="w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 py-4 pl-14 pr-4 text-2xl font-black text-slate-800 shadow-sm transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-100"
+                            required
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <Button
+                        type="submit"
+                        disabled={createSaleMutation.isPending || !amount}
+                        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-emerald-700 hover:to-teal-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        {createSaleMutation.isPending ? (
+                          <>
+                            <svg className="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                            </svg>
+                            Registrando…
+                          </>
+                        ) : (
+                          <>
+                            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                            Registrar venda
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-8 text-center text-sm text-slate-500">
+                      Selecione um colaborador para liberar o campo de valor.
+                    </div>
+                  )}
+                </div>
+              </form>
+            </SensitiveSection>
           </div>
-        )}
+
+          <div className="space-y-6">
+            <SensitiveSection>
+              <div className="flex flex-col rounded-2xl border border-cyan-100/70 bg-white/85 shadow-lg backdrop-blur-sm sm:rounded-3xl">
+                <div className="flex items-center justify-between px-4 pt-4 sm:px-6 sm:pt-6">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-cyan-500 sm:text-xs sm:tracking-[0.28em]">Fluxo ao vivo</p>
+                    <h2 className="mt-0.5 text-base font-semibold text-slate-900 sm:mt-1 sm:text-lg">Vendas registradas</h2>
+                  </div>
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    {recentSales.length > 0 && (
+                      <span className="rounded-full bg-cyan-50 px-2 py-0.5 text-[10px] font-semibold text-cyan-600 sm:px-3 sm:py-1 sm:text-xs">
+                        {recentSales.length}
+                      </span>
+                    )}
+                    <SensitiveSectionToggleButton className="border-cyan-200 bg-cyan-50 text-cyan-600 active:bg-cyan-100 sm:hover:bg-cyan-100" />
+                  </div>
+                </div>
+                <div className="flex-1 overflow-hidden px-4 pb-4 pt-3 sm:px-6 sm:pb-6 sm:pt-4">
+                  {recentSales.length > 0 ? (
+                    <div className="relative max-h-[400px] space-y-2.5 overflow-y-auto pl-5 pr-1.5 sm:max-h-[500px] sm:space-y-3 sm:pl-6 sm:pr-2">
+                      <div className="absolute left-0 top-0 bottom-0 w-px bg-gradient-to-b from-cyan-200 via-cyan-100 to-transparent" />
+                      {recentSales.map((sale) => {
+                        const amountValue =
+                          typeof sale.amount === "number"
+                            ? sale.amount
+                            : parseFloat(String(sale.amount));
+
+                        return (
+                          <div
+                            key={sale.id}
+                            className="relative rounded-xl border border-cyan-100 bg-white/90 px-3 py-3 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg"
+                          >
+                            <span className="absolute -left-[0.65rem] top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full border-2 border-white bg-cyan-500 shadow" />
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex items-center gap-2.5 sm:flex-1">
+                                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 text-xs font-bold text-white shadow-md">
+                                  {sale.employee?.name?.charAt(0)?.toUpperCase() ?? ""}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  {sale.employee ? (
+                                    <EmployeeLink
+                                      employeeId={sale.employeeId}
+                                      employeeName={sale.employee.name}
+                                      className="truncate text-sm font-semibold text-slate-900 hover:text-cyan-600"
+                                    />
+                                  ) : (
+                                    <p className="text-sm font-semibold text-slate-900">Colaborador removido</p>
+                                  )}
+                                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                                    <svg className="h-3.5 w-3.5 text-cyan-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    {new Date(sale.createdAt ?? `${sale.date}T00:00:00`).toLocaleTimeString("pt-BR", {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="sm:ml-auto">
+                                <div className="flex items-center justify-end gap-2 sm:min-w-[140px]">
+                                  <SensitiveValue
+                                    className="text-xs font-bold text-emerald-600"
+                                    containerClassName="inline-flex items-center justify-center whitespace-nowrap rounded-full bg-emerald-50 px-2.5 py-1 shadow-sm"
+                                  >
+                                    {formatCurrency(amountValue)}
+                                  </SensitiveValue>
+                                  <button
+                                    onClick={() => handleDeleteSale(sale.id)}
+                                    disabled={deleteSaleMutation.isPending}
+                                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-red-200 bg-white text-red-500 transition hover:bg-red-500 hover:text-white disabled:opacity-50"
+                                    title="Remover venda"
+                                  >
+                                    <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-cyan-100 bg-cyan-50/70 px-4 py-10 text-center">
+                      <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-cyan-100 text-cyan-600">
+                        <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <p className="mt-3 text-sm font-semibold text-cyan-700">Nenhuma venda registrada</p>
+                      <p className="text-xs text-cyan-600">As vendas aparecem aqui instantaneamente após o registro.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </SensitiveSection>
+
+            <div className="rounded-2xl border border-slate-200/60 bg-white/90 p-4 shadow-lg backdrop-blur-sm sm:rounded-3xl sm:p-6">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-slate-500 sm:text-xs sm:tracking-[0.28em]">Dica de ritmo</p>
+              <h3 className="mt-1.5 text-base font-semibold text-slate-900 sm:mt-2 sm:text-lg">Reserve momentos curtos para registrar</h3>
+              <p className="mt-2 text-xs text-slate-600 sm:mt-3 sm:text-sm">
+                Anote as vendas logo após cada atendimento para manter o painel sempre atualizado. Use o campo de valor como checklist rápido e ajuste qualquer detalhe quando o dia acalmar.
+              </p>
+            </div>
+          </div>
+        </div>
       </main>
+    </div>
+  );
+}
+
+type ComposerStepPillProps = {
+  step: ComposerStep;
+};
+
+function ComposerStepPill({ step }: ComposerStepPillProps) {
+  const stateClasses = {
+    done: "border-white/30 bg-white/20 text-white",
+    active: "border-white/40 bg-white/25 text-white",
+    idle: "border-white/20 bg-white/10 text-white/70",
+  }[step.state];
+
+  const iconWrapper = {
+    done: "border-white/60 bg-emerald-300/90 text-emerald-900",
+    active: "border-white/45 bg-white/15 text-white",
+    idle: "border-white/25 bg-white/5 text-white/60",
+  }[step.state];
+
+  const icon =
+    step.state === "done" ? (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+      </svg>
+    ) : step.state === "active" ? (
+      <span className="block h-2.5 w-2.5 rounded-full bg-white" />
+    ) : (
+      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v.01M12 12v.01M12 18v.01" />
+      </svg>
+    );
+
+  return (
+    <div className={`flex items-start gap-3 rounded-2xl border p-4 backdrop-blur-sm ${stateClasses}`}>
+      <div className={`flex h-9 w-9 items-center justify-center rounded-full border ${iconWrapper}`}>
+        {icon}
+      </div>
+      <div>
+        <p className="text-sm font-semibold">{step.label}</p>
+        <p className="mt-1 text-xs text-white/80">{step.description}</p>
+      </div>
     </div>
   );
 }

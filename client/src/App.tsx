@@ -1,43 +1,84 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpLink } from "@trpc/client";
-import { useState } from "react";
-import { Route, Switch } from "wouter";
+import type { ReactElement } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { Route, Switch, useLocation } from "wouter";
 import { trpc } from "./lib/trpc";
-import Login from "./pages/Login";
-import Home from "./pages/Home";
-import NotFound from "./pages/NotFound";
-import Employees from "./pages/Employees";
-import EmployeeDetails from "./pages/EmployeeDetails";
-import Sales from "./pages/Sales";
-import Statistics from "./pages/Statistics";
-import AdminAccessCodes from "./pages/AdminAccessCodes";
 import { useAuth } from "./hooks/useAuth";
+import Navbar from "./components/Navbar";
+import { PageHeaderProvider } from "./contexts/PageHeaderContext";
 
-function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
+const Login = lazy(() => import("./pages/Login"));
+const Home = lazy(() => import("./pages/Home"));
+const Employees = lazy(() => import("./pages/Employees"));
+const EmployeeDetails = lazy(() => import("./pages/EmployeeDetails"));
+const Sales = lazy(() => import("./pages/Sales"));
+const Statistics = lazy(() => import("./pages/Statistics"));
+const AdminAccessCodes = lazy(() => import("./pages/AdminAccessCodes"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+
+function RouteFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 text-sm font-semibold text-slate-600">
+      Carregando painel...
+    </div>
+  );
+}
+
+function ProtectedRoute({ children }: { children: ReactElement }) {
   const { user, loading } = useAuth();
+  const [, navigate] = useLocation();
+
+  useEffect(() => {
+    if (!loading && !user) {
+      navigate("/login");
+    }
+  }, [loading, user, navigate]);
 
   if (loading) {
-    return <div className="flex items-center justify-center min-h-screen">Carregando...</div>;
+    return <RouteFallback />;
   }
 
   if (!user) {
-    return <Login />;
+    return null;
   }
 
-  return <Component />;
+  return children;
+}
+
+function ProtectedAppShell() {
+  return (
+    <ProtectedRoute>
+      <>
+        <Navbar />
+        <Suspense fallback={<RouteFallback />}>
+          <Switch>
+            <Route path="/employees/:id" component={EmployeeDetails} />
+            <Route path="/employees" component={Employees} />
+            <Route path="/sales" component={Sales} />
+            <Route path="/statistics" component={Statistics} />
+            <Route path="/admin/access-codes" component={AdminAccessCodes} />
+            <Route path="/" component={Home} />
+            <Route component={NotFound} />
+          </Switch>
+        </Suspense>
+      </>
+    </ProtectedRoute>
+  );
 }
 
 function Router() {
   return (
     <Switch>
-      <Route path="/login" component={Login} />
-      <Route path="/" component={() => <ProtectedRoute component={Home} />} />
-      <Route path="/employees" component={() => <ProtectedRoute component={Employees} />} />
-      <Route path="/employees/:id" component={() => <ProtectedRoute component={EmployeeDetails} />} />
-      <Route path="/sales" component={() => <ProtectedRoute component={Sales} />} />
-      <Route path="/statistics" component={() => <ProtectedRoute component={Statistics} />} />
-      <Route path="/admin/access-codes" component={() => <ProtectedRoute component={AdminAccessCodes} />} />
-      <Route component={NotFound} />
+      <Route
+        path="/login"
+        component={() => (
+          <Suspense fallback={<RouteFallback />}>
+            <Login />
+          </Suspense>
+        )}
+      />
+      <Route component={ProtectedAppShell} />
     </Switch>
   );
 }
@@ -85,7 +126,9 @@ export default function App() {
   return (
     <trpc.Provider client={trpcClient} queryClient={queryClient}>
       <QueryClientProvider client={queryClient}>
-        <Router />
+        <PageHeaderProvider>
+          <Router />
+        </PageHeaderProvider>
       </QueryClientProvider>
     </trpc.Provider>
   );

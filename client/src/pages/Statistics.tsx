@@ -16,9 +16,10 @@ import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLocation } from "wouter";
-import Navbar from "@/components/Navbar";
 import EmployeeLink from "@/components/EmployeeLink";
 import { calculateCommission, formatCurrency, formatPercentage } from "@/lib/utils-commission";
+import { SensitiveSection, SensitiveSectionToggleButton, SensitiveValue } from "@/components/SensitiveValue";
+import { usePageHeader } from "@/contexts/PageHeaderContext";
 
 const COMPANY_ID = "default-company";
 
@@ -38,6 +39,12 @@ function getLocalDateString(date: Date = new Date()) {
 export default function Statistics() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
+  const { setTitle, setShowUserInfo } = usePageHeader();
+  
+  useEffect(() => {
+    setTitle("Estatísticas");
+    setShowUserInfo(true);
+  }, [setShowUserInfo, setTitle]);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [viewMode, setViewMode] = useState<'cards' | 'table'>('cards');
@@ -48,7 +55,6 @@ export default function Statistics() {
   const [showDailyReport, setShowDailyReport] = useState(false);
   
   // Estado para visibilidade de comissões
-  const [showCommissions, setShowCommissions] = useState(false);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat("pt-BR"), []);
   const compactCurrencyFormatter = useMemo(
@@ -317,12 +323,20 @@ export default function Statistics() {
       <div className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs shadow-lg">
         <p className="font-semibold text-gray-700">Dia {String(label ?? "").padStart(2, "0")}</p>
         <p className="mt-1 text-gray-600">
-          Total: <span className="font-semibold text-indigo-600">{formatCurrency(total)}</span>
+          Total:
+          <SensitiveValue
+            className="font-semibold text-indigo-600"
+            containerClassName="ml-1"
+          >
+            {formatCurrency(total)}
+          </SensitiveValue>
         </p>
         {averageDaily > 0 && (
           <p className="text-gray-500">
-            Diferença vs média: {difference >= 0 ? "+" : "-"}
-            {formatCurrency(Math.abs(difference))}
+            Diferença vs média:{" "}
+            <SensitiveValue className="font-semibold text-gray-600">
+              {`${difference >= 0 ? "+" : "-"}${formatCurrency(Math.abs(difference))}`}
+            </SensitiveValue>
           </p>
         )}
       </div>
@@ -339,7 +353,13 @@ export default function Statistics() {
       <div className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs shadow-lg">
         <p className="text-sm font-semibold text-gray-700">{item.fullName}</p>
         <p className="mt-1 text-gray-600">
-          Total: <span className="font-semibold text-indigo-600">{formatCurrency(item.total)}</span>
+          Total:
+          <SensitiveValue
+            className="font-semibold text-indigo-600"
+            containerClassName="ml-1"
+          >
+            {formatCurrency(item.total)}
+          </SensitiveValue>
         </p>
         <p className="text-gray-500">Vendas: {item.salesCount}</p>
         <p className="text-gray-500">Participação: {item.share.toFixed(1)}%</p>
@@ -354,8 +374,6 @@ export default function Statistics() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
-      <Navbar title="Estatísticas" showUserInfo={true} />
-
       <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-10">
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-purple-600 to-indigo-700 text-white shadow-xl">
           <div className="absolute inset-0 opacity-40">
@@ -393,19 +411,28 @@ export default function Statistics() {
                 </div>
               </div>
 
-              <div className="w-full max-w-sm rounded-2xl border border-white/25 bg-white/10 p-6 shadow-lg backdrop-blur">
-                <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
-                  Receita no período
-                </p>
+              <SensitiveSection>
+                <div className="w-full max-w-sm rounded-2xl border border-white/25 bg-white/10 p-6 shadow-lg backdrop-blur">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-white/80">
+                      Receita no período
+                    </p>
+                    <SensitiveSectionToggleButton className="border-white/40 bg-white/15 text-white/90 hover:bg-white/25" />
+                  </div>
                 <p className="mt-3 text-3xl font-bold sm:text-4xl">
-                  {formatCurrency(monthlyTotal)}
+                  <SensitiveValue className="text-inherit font-inherit" containerClassName="w-full justify-start">
+                    {formatCurrency(monthlyTotal)}
+                  </SensitiveValue>
                 </p>
                 <div className="mt-6 space-y-4">
                   {bestDay && (
                     <div className="rounded-xl border border-white/15 bg-white/15 px-4 py-3 text-sm text-white/90">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Melhor dia</p>
                       <p className="mt-1 text-base font-semibold text-white">
-                        Dia {String(bestDay.day).padStart(2, '0')} • {formatCurrency(bestDay.total)}
+                        Dia {String(bestDay.day).padStart(2, '0')} •{' '}
+                        <SensitiveValue className="font-semibold text-white" containerClassName="ml-1">
+                          {formatCurrency(bestDay.total)}
+                        </SensitiveValue>
                       </p>
                     </div>
                   )}
@@ -413,7 +440,9 @@ export default function Statistics() {
                     <div className="rounded-xl border border-white/15 bg-white/12 px-4 py-3 text-sm text-white/90">
                       <p className="text-[11px] font-semibold uppercase tracking-wide text-white/70">Média diária</p>
                       <p className="mt-1 text-base font-semibold text-white">
-                        {formatCurrency(averageDaily)}
+                        <SensitiveValue className="font-semibold text-white" containerClassName="w-full justify-start">
+                          {formatCurrency(averageDaily)}
+                        </SensitiveValue>
                       </p>
                     </div>
                   )}
@@ -436,7 +465,9 @@ export default function Statistics() {
                       </div>
                       <div className="mt-2 flex items-center justify-between text-xs text-white/85">
                         <span>{topPerformer.salesCount} venda{topPerformer.salesCount === 1 ? '' : 's'}</span>
-                        <span>{formatCurrency(topPerformer.total)}</span>
+                        <SensitiveValue className="font-semibold text-white" containerClassName="ml-auto">
+                          {formatCurrency(topPerformer.total)}
+                        </SensitiveValue>
                       </div>
                       <p className="text-[11px] text-white/75">
                         Participação no mês: {topPerformerShare.toFixed(1)}%
@@ -444,7 +475,8 @@ export default function Statistics() {
                     </div>
                   )}
                 </div>
-              </div>
+                </div>
+              </SensitiveSection>
             </div>
           </div>
         </section>
@@ -588,7 +620,12 @@ export default function Statistics() {
               </div>
               <p className="text-emerald-50 text-xs font-bold mb-1 uppercase tracking-wide">Total Geral</p>
               <p className="text-xl sm:text-2xl font-black mb-1 break-words">
-                {formatCurrency(totalQuery.data || 0)}
+                <SensitiveValue
+                  className="text-inherit font-inherit"
+                  containerClassName="w-full justify-start"
+                >
+                  {formatCurrency(totalQuery.data || 0)}
+                </SensitiveValue>
               </p>
               <p className="text-emerald-50 text-xs font-semibold flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -601,7 +638,7 @@ export default function Statistics() {
           </Card>
 
           {/* Total de Comissões */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-purple-500 to-violet-600 text-white overflow-hidden relative group cursor-pointer" onClick={() => setShowCommissions(!showCommissions)}>
+          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-purple-500 to-violet-600 text-white overflow-hidden relative">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
             <CardContent className="p-4 sm:p-6 relative z-10">
               <div className="flex items-center justify-between mb-3">
@@ -610,24 +647,16 @@ export default function Statistics() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
-                {/* Indicador discreto - aparece apenas no hover */}
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                  {showCommissions ? (
-                    <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4 text-white/60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  )}
-                </div>
               </div>
               <p className="text-purple-50 text-xs font-bold mb-1 uppercase tracking-wide">Comissões</p>
-              <p className={`text-xl sm:text-2xl font-black mb-1 break-words transition-all duration-300 ${!showCommissions ? 'blur-md select-none' : ''}`}>
+              <SensitiveValue
+                className="text-xl sm:text-2xl font-black"
+                containerClassName="mb-1 w-full justify-start break-words"
+                hideLabel="Ocultar comissão"
+                revealLabel="Mostrar"
+              >
                 {formatCurrency(totalCommissions)}
-              </p>
+              </SensitiveValue>
               <p className="text-purple-50 text-xs font-semibold flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
@@ -694,7 +723,12 @@ export default function Statistics() {
               </div>
               <p className="text-orange-50 text-xs font-bold mb-1 uppercase tracking-wide">Média/Funcionário</p>
               <p className="text-xl sm:text-2xl font-black mb-1 break-words">
-                {formatCurrency(averagePerEmployee)}
+                <SensitiveValue
+                  className="text-inherit font-inherit"
+                  containerClassName="w-full justify-start"
+                >
+                  {formatCurrency(averagePerEmployee)}
+                </SensitiveValue>
               </p>
               <p className="text-orange-50 text-xs font-semibold flex items-center gap-1">
                 <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
@@ -707,24 +741,28 @@ export default function Statistics() {
         </div>
 
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <Card className="xl:col-span-2 border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
+          <SensitiveSection>
+            <Card className="xl:col-span-2 border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
             <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <CardTitle className="flex items-center gap-3 text-indigo-800">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18M5 12h14M7 16h10M9 20h6" />
-                    </svg>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="flex items-center gap-3 text-indigo-800">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4h18M3 8h18M5 12h14M7 16h10M9 20h6" />
+                      </svg>
+                    </div>
+                    Evolução diária das vendas
+                  </CardTitle>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      {monthLabel}
+                    </span>
+                    <SensitiveSectionToggleButton className="border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50" />
                   </div>
-                  Evolução diária das vendas
-                </CardTitle>
-                <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  {monthLabel}
-                </span>
-              </div>
+                </div>
             </CardHeader>
             <CardContent className="pt-6">
               <div className="h-[320px]">
@@ -780,13 +818,24 @@ export default function Statistics() {
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-500">Média diária</p>
                   <p className="mt-1 text-sm font-bold text-indigo-800">
-                    {averageDaily > 0 ? formatCurrency(averageDaily) : '--'}
+                    {averageDaily > 0 ? (
+                      <SensitiveValue className="font-bold text-indigo-800" containerClassName="w-full justify-start">
+                        {formatCurrency(averageDaily)}
+                      </SensitiveValue>
+                    ) : '--'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-500">Melhor dia</p>
                   <p className="mt-1 text-sm font-bold text-emerald-700">
-                    {bestDay ? `Dia ${String(bestDay.day).padStart(2, '0')} • ${formatCurrency(bestDay.total)}` : 'Aguardando vendas'}
+                    {bestDay ? (
+                      <>
+                        Dia {String(bestDay.day).padStart(2, '0')} •{' '}
+                        <SensitiveValue className="font-bold text-emerald-700" containerClassName="ml-1">
+                          {formatCurrency(bestDay.total)}
+                        </SensitiveValue>
+                      </>
+                    ) : 'Aguardando vendas'}
                   </p>
                 </div>
                 <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3">
@@ -797,27 +846,31 @@ export default function Statistics() {
                 </div>
               </div>
             </CardContent>
-          </Card>
-
-          <Card className="border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
-            <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <CardTitle className="flex items-center gap-3 text-indigo-800">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3h2m-1 0v18m-7-4h14M5 11h14M5 7h14" />
-                    </svg>
+            </Card>
+          </SensitiveSection>
+          <SensitiveSection>
+            <Card className="border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
+              <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <CardTitle className="flex items-center gap-3 text-indigo-800">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                      <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3h2m-1 0v18m-7-4h14M5 11h14M5 7h14" />
+                      </svg>
+                    </div>
+                    Ranking por faturamento
+                  </CardTitle>
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                    <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                      </svg>
+                      Top 6 do mês
+                    </span>
+                    <SensitiveSectionToggleButton className="border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50" />
                   </div>
-                  Ranking por faturamento
-                </CardTitle>
-                <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
-                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  Top 6 do mês
-                </span>
-              </div>
-            </CardHeader>
+                </div>
+              </CardHeader>
             <CardContent className="pt-6">
               <div className="h-[320px]">
                 {hasTopEmployeesData ? (
@@ -876,7 +929,9 @@ export default function Statistics() {
                         <div className="flex-1">
                           <p className="text-sm font-semibold text-slate-700">{item.fullName}</p>
                           <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                            <span>{formatCurrency(item.total)}</span>
+                            <SensitiveValue className="font-semibold text-slate-500" containerClassName="w-fit">
+                              {formatCurrency(item.total)}
+                            </SensitiveValue>
                             <span>•</span>
                             <span>{item.salesCount} venda{item.salesCount === 1 ? '' : 's'}</span>
                           </div>
@@ -891,11 +946,13 @@ export default function Statistics() {
                 </div>
               )}
             </CardContent>
-          </Card>
+            </Card>
+          </SensitiveSection>
         </section>
 
         {/* Ranking de Funcionários */}
-        <Card className="border border-indigo-100 bg-white/95 backdrop-blur rounded-3xl shadow-xl overflow-hidden">
+        <SensitiveSection>
+          <Card className="border border-indigo-100 bg-white/95 backdrop-blur rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="border-b border-indigo-100 bg-white/75 backdrop-blur-sm text-indigo-800">
             <div className="flex items-center justify-between flex-wrap gap-4">
               <CardTitle className="flex items-center gap-3 text-indigo-800">
@@ -913,24 +970,6 @@ export default function Statistics() {
               </CardTitle>
 
               <div className="flex items-center gap-3">
-                {/* Ícone discreto para toggle - clique no ícone de troféu */}
-                <div 
-                  onClick={() => setShowCommissions(!showCommissions)}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-indigo-100 bg-indigo-50 text-indigo-600 transition-all duration-200 hover:bg-indigo-100 hover:text-indigo-700 cursor-pointer"
-                  title="Clique para alternar visualização"
-                >
-                  {showCommissions ? (
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  ) : (
-                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  )}
-                </div>
-
                 {/* Ordenação */}
                 <div className="flex gap-1 rounded-lg bg-indigo-100 p-1">
                   <button
@@ -1006,6 +1045,7 @@ export default function Statistics() {
                     </svg>
                   </button>
                 </div>
+                <SensitiveSectionToggleButton className="border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50" />
               </div>
             </div>
           </CardHeader>
@@ -1054,9 +1094,12 @@ export default function Statistics() {
                       <div className="space-y-2">
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-gray-600">Total</span>
-                          <span className="text-xl font-black text-emerald-600">
+                          <SensitiveValue
+                            className="text-xl font-black text-emerald-600"
+                            containerClassName="w-fit justify-end"
+                          >
                             {formatCurrency(item.total)}
-                          </span>
+                          </SensitiveValue>
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Vendas</span>
@@ -1064,16 +1107,23 @@ export default function Statistics() {
                         </div>
                         <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-600">Ticket médio</span>
-                          <span className="font-bold text-indigo-600">
+                          <SensitiveValue
+                            className="font-bold text-indigo-600"
+                            containerClassName="w-fit justify-end"
+                          >
                             {formatCurrency(item.average)}
-                          </span>
+                          </SensitiveValue>
                         </div>
                         <div className="pt-2 mt-2 border-t border-gray-200">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-gray-500">Comissão ({formatPercentage(item.commissionRate)})</span>
-                            <span className={`text-base font-bold text-purple-600 transition-all duration-300 ${!showCommissions ? 'blur-md select-none' : ''}`}>
+                            <SensitiveValue
+                              key={`card-commission-${item.employee.id}`}
+                              className="text-base font-bold text-purple-600"
+                              containerClassName="w-fit justify-end"
+                            >
                               {formatCurrency(item.commission)}
-                            </span>
+                            </SensitiveValue>
                           </div>
                         </div>
                       </div>
@@ -1119,9 +1169,12 @@ export default function Statistics() {
                           />
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
-                          <span className="text-lg font-black text-emerald-600">
+                          <SensitiveValue
+                            className="text-lg font-black text-emerald-600"
+                            containerClassName="ml-auto justify-end"
+                          >
                             {formatCurrency(item.total)}
-                          </span>
+                          </SensitiveValue>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-center">
                           <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-700">
@@ -1129,15 +1182,22 @@ export default function Statistics() {
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
-                          <span className="text-base font-bold text-indigo-600">
+                          <SensitiveValue
+                            className="text-base font-bold text-indigo-600"
+                            containerClassName="ml-auto justify-end"
+                          >
                             {formatCurrency(item.average)}
-                          </span>
+                          </SensitiveValue>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
-                          <div className={`text-right transition-all duration-300 ${!showCommissions ? 'blur-md select-none' : ''}`}>
-                            <span className="text-base font-bold text-purple-600 block">
+                          <div className="text-right">
+                            <SensitiveValue
+                              key={`table-commission-${item.employee.id}`}
+                              className="text-base font-bold text-purple-600"
+                              containerClassName="ml-auto justify-end"
+                            >
                               {formatCurrency(item.commission)}
-                            </span>
+                            </SensitiveValue>
                             <span className="text-xs text-gray-500">
                               ({formatPercentage(item.commissionRate)})
                             </span>
@@ -1170,19 +1230,23 @@ export default function Statistics() {
               </div>
             )}
           </CardContent>
-        </Card>
-
+          </Card>
+        </SensitiveSection>
         {/* Seção de Relatório Diário */}
-        <Card className="mt-10 border border-rose-100 bg-white/95 backdrop-blur rounded-3xl shadow-xl overflow-hidden">
+        <SensitiveSection>
+          <Card className="mt-10 border border-rose-100 bg-white/95 backdrop-blur rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="border-b border-rose-100 bg-white/75 backdrop-blur-sm text-rose-600">
-            <CardTitle className="flex items-center gap-3 text-rose-700">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              Relatório Diário Detalhado
-            </CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-3 text-rose-700">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                </div>
+                Relatório Diário Detalhado
+              </CardTitle>
+              <SensitiveSectionToggleButton className="border-rose-200 bg-white text-rose-600 hover:bg-rose-50" />
+            </div>
           </CardHeader>
           
           <CardContent className="pt-6">
@@ -1250,7 +1314,12 @@ export default function Statistics() {
                           <span className="text-sm font-bold text-pink-700 uppercase">Total do Dia</span>
                         </div>
                         <p className="text-2xl font-black text-pink-600">
-                          {formatCurrency(dailyStats.reduce((sum, s) => sum + s.total, 0))}
+                          <SensitiveValue
+                            className="text-2xl font-black text-pink-600"
+                            containerClassName="w-full justify-start"
+                          >
+                            {formatCurrency(dailyStats.reduce((sum, s) => sum + s.total, 0))}
+                          </SensitiveValue>
                         </p>
                       </div>
 
@@ -1292,7 +1361,12 @@ export default function Statistics() {
                           <span className="text-sm font-bold text-orange-700 uppercase">Média por Venda</span>
                         </div>
                         <p className="text-2xl font-black text-orange-600">
-                          {formatCurrency(dailyStats.reduce((sum, s) => sum + s.total, 0) / dailyStats.reduce((sum, s) => sum + s.salesCount, 0))}
+                          <SensitiveValue
+                            className="text-2xl font-black text-orange-600"
+                            containerClassName="w-full justify-start"
+                          >
+                            {formatCurrency(dailyStats.reduce((sum, s) => sum + s.total, 0) / dailyStats.reduce((sum, s) => sum + s.salesCount, 0))}
+                          </SensitiveValue>
                         </p>
                       </div>
                     </div>
@@ -1387,23 +1461,32 @@ export default function Statistics() {
                                   </span>
                                 </td>
                                 <td className="px-6 py-5 text-right">
-                                  <span className="text-lg font-black text-pink-600">
+                                  <SensitiveValue
+                                    className="text-lg font-black text-pink-600"
+                                    containerClassName="ml-auto justify-end"
+                                  >
                                     {formatCurrency(stat.total)}
-                                  </span>
+                                  </SensitiveValue>
                                 </td>
                                 <td className="px-6 py-5 text-right">
-                                  <span className="text-base font-bold text-indigo-600">
+                                  <SensitiveValue
+                                    className="text-base font-bold text-indigo-600"
+                                    containerClassName="ml-auto justify-end"
+                                  >
                                     {formatCurrency(stat.average)}
-                                  </span>
+                                  </SensitiveValue>
                                 </td>
                                 <td className="px-6 py-5 text-right">
                                   <div className="flex items-center justify-end gap-2">
                                     <svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
                                       <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                                     </svg>
-                                    <span className="text-base font-bold text-emerald-600">
+                                    <SensitiveValue
+                                      className="text-base font-bold text-emerald-600"
+                                      containerClassName="w-fit"
+                                    >
                                       {formatCurrency(stat.highestSale)}
-                                    </span>
+                                    </SensitiveValue>
                                   </div>
                                 </td>
                                 <td className="px-6 py-5 text-right">
@@ -1411,9 +1494,12 @@ export default function Statistics() {
                                     <svg className="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20">
                                       <path fillRule="evenodd" d="M14.707 10.293a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 111.414-1.414L9 12.586V5a1 1 0 012 0v7.586l2.293-2.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                     </svg>
-                                    <span className="text-base font-bold text-red-600">
+                                    <SensitiveValue
+                                      className="text-base font-bold text-red-600"
+                                      containerClassName="w-fit"
+                                    >
                                       {formatCurrency(stat.lowestSale)}
-                                    </span>
+                                    </SensitiveValue>
                                   </div>
                                 </td>
                               </tr>
@@ -1439,7 +1525,8 @@ export default function Statistics() {
               </div>
             )}
           </CardContent>
-        </Card>
+          </Card>
+        </SensitiveSection>
       </main>
     </div>
   );
