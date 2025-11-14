@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 import { trpc } from "@/lib/trpc";
+import type { DailySaleRecord, EmployeeRecord } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import EmployeeLink from "@/components/EmployeeLink";
@@ -23,18 +24,14 @@ type ComposerStep = {
   state: StepState;
 };
 
-type DailySale = {
-  id: string;
-  employeeId: string;
-  date: string;
-  amount: string | number;
-  createdAt: string | null;
-};
-
 type EmployeeSalesSnapshot = {
   total: number;
   count: number;
 };
+
+type EmployeeEntity = EmployeeRecord;
+type CompanySale = DailySaleRecord;
+type CompanySales = CompanySale[];
 
 function getLocalDateString(date: Date = new Date()) {
   const year = date.getFullYear();
@@ -127,10 +124,12 @@ export default function Sales() {
     },
   });
 
-  const employees = employeesQuery.data ?? [];
+  const employees: EmployeeEntity[] = (employeesQuery.data as EmployeeEntity[] | undefined) ?? [];
+
+  const sales: CompanySales = (salesQuery.data as CompanySales | undefined) ?? [];
 
   const employeesById = useMemo(
-    () => new Map(employees.map((employee) => [employee.id, employee])),
+    () => new Map<string, EmployeeEntity>(employees.map((employee) => [employee.id, employee])),
     [employees],
   );
 
@@ -259,13 +258,9 @@ export default function Sales() {
   };
 
   const salesByEmployee = useMemo(() => {
-    if (!salesQuery.data) {
-      return new Map<string, EmployeeSalesSnapshot>();
-    }
-
     const grouped = new Map<string, EmployeeSalesSnapshot>();
 
-    for (const sale of salesQuery.data) {
+    for (const sale of sales) {
       const amountValue =
         typeof sale.amount === "number" ? sale.amount : parseFloat(String(sale.amount));
       if (Number.isNaN(amountValue)) {
@@ -280,16 +275,11 @@ export default function Sales() {
         grouped.set(sale.employeeId, { total: amountValue, count: 1 });
       }
     }
-
     return grouped;
-  }, [salesQuery.data]);
+  }, [sales]);
 
-  const recentSales = useMemo(() => {
-    if (!salesQuery.data) {
-      return [] as Array<DailySale & { employee?: { id: string; name: string; position?: string | null } }>;
-    }
-
-    return [...salesQuery.data]
+  const recentSales = useMemo<Array<CompanySale & { employee?: EmployeeEntity }>>(() => {
+    return [...sales]
       .sort((a, b) => {
         const dateA = new Date(a.createdAt ?? `${a.date}T00:00:00`).getTime();
         const dateB = new Date(b.createdAt ?? `${b.date}T00:00:00`).getTime();
@@ -299,7 +289,7 @@ export default function Sales() {
         ...sale,
         employee: employeesById.get(sale.employeeId),
       }));
-  }, [employeesById, salesQuery.data]);
+  }, [employeesById, sales]);
 
   const parsedAmount = amount ? Number(amount) : null;
   const isTodaySelected = selectedDate === getLocalDateString();
@@ -460,7 +450,7 @@ export default function Sales() {
               </div>
               <div className="px-4 pb-4 pt-3 space-y-3 sm:px-6 sm:pb-6 sm:pt-4 sm:space-y-4">
                 <div className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+                  <div className="relative flex flex-col gap-3 lg:flex-row lg:items-center">
                     <div className="relative flex-1 lg:max-w-xs">
                       <span className="pointer-events-none absolute left-5 top-1/2 -translate-y-1/2 text-[11px] font-semibold uppercase tracking-[0.28em] text-emerald-500">
                         Dia
@@ -493,6 +483,89 @@ export default function Sales() {
                       </svg>
                       <span className="lg:hidden">Calendário</span>
                     </button>
+                    {showCalendar && (
+                      <div className="absolute top-full right-0 z-10 mt-2 w-full rounded-2xl border-2 border-emerald-100 bg-white p-4 shadow-lg lg:w-80">
+                        <div className="flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => changeYear(-1)}
+                            className="rounded-full p-1.5 text-emerald-500 transition hover:bg-emerald-50"
+                            title="Ano anterior"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                            </svg>
+                          </button>
+                          <p className="text-sm font-semibold text-slate-700">{currentDate.getFullYear()}</p>
+                          <button
+                            type="button"
+                            onClick={() => changeYear(1)}
+                            className="rounded-full p-1.5 text-emerald-500 transition hover:bg-emerald-50"
+                            title="Próximo ano"
+                          >
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                            </svg>
+                          </button>
+                        </div>
+
+                        <div className="mt-2 flex items-center justify-between">
+                          <button
+                            type="button"
+                            onClick={() => changeMonth(-1)}
+                            className="rounded-xl px-3 py-1 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50"
+                            title="Mês anterior"
+                          >
+                            Anterior
+                          </button>
+                          <h3 className="text-base font-bold capitalize text-slate-800">
+                            {currentDate.toLocaleDateString("pt-BR", { month: "long" })}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => changeMonth(1)}
+                            className="rounded-xl px-3 py-1 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50"
+                            title="Próximo mês"
+                          >
+                            Próximo
+                          </button>
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-7 gap-1">
+                          {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((dayLabel) => (
+                            <div
+                              key={dayLabel}
+                              className="py-1 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400"
+                            >
+                              {dayLabel}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="mt-1 grid grid-cols-7 gap-1">
+                          {calendarDays.map((calendarDay, index) => (
+                            <button
+                              key={index}
+                              type="button"
+                              onClick={() => {
+                                if (calendarDay) {
+                                  handleCalendarDayClick(calendarDay);
+                                }
+                              }}
+                              disabled={!calendarDay}
+                              className={`aspect-square rounded-xl text-sm font-semibold transition ${
+                                !calendarDay
+                                  ? "invisible"
+                                  : calendarDay === selectedDay
+                                    ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg"
+                                    : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              }`}
+                            >
+                              {calendarDay}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                   <p className="text-xs font-semibold uppercase tracking-[0.28em] text-emerald-500/80">
                     Ajuste o dia sempre que precisar revisar vendas anteriores sem perder o foco de hoje.
@@ -509,90 +582,6 @@ export default function Sales() {
                     </p>
                   </div>
                 </div>
-
-                {showCalendar && (
-                  <div className="rounded-2xl border-2 border-emerald-100 bg-white p-4 shadow-lg">
-                    <div className="flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => changeYear(-1)}
-                        className="rounded-full p-1.5 text-emerald-500 transition hover:bg-emerald-50"
-                        title="Ano anterior"
-                      >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      <p className="text-sm font-semibold text-slate-700">{currentDate.getFullYear()}</p>
-                      <button
-                        type="button"
-                        onClick={() => changeYear(1)}
-                        className="rounded-full p-1.5 text-emerald-500 transition hover:bg-emerald-50"
-                        title="Próximo ano"
-                      >
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                        </svg>
-                      </button>
-                    </div>
-
-                    <div className="mt-2 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() => changeMonth(-1)}
-                        className="rounded-xl px-3 py-1 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50"
-                        title="Mês anterior"
-                      >
-                        Anterior
-                      </button>
-                      <h3 className="text-base font-bold capitalize text-slate-800">
-                        {currentDate.toLocaleDateString("pt-BR", { month: "long" })}
-                      </h3>
-                      <button
-                        type="button"
-                        onClick={() => changeMonth(1)}
-                        className="rounded-xl px-3 py-1 text-sm font-semibold text-emerald-600 transition hover:bg-emerald-50"
-                        title="Próximo mês"
-                      >
-                        Próximo
-                      </button>
-                    </div>
-
-                    <div className="mt-4 grid grid-cols-7 gap-1">
-                      {["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"].map((dayLabel) => (
-                        <div
-                          key={dayLabel}
-                          className="py-1 text-center text-[11px] font-semibold uppercase tracking-widest text-slate-400"
-                        >
-                          {dayLabel}
-                        </div>
-                      ))}
-                    </div>
-                    <div className="mt-1 grid grid-cols-7 gap-1">
-                      {calendarDays.map((calendarDay, index) => (
-                        <button
-                          key={index}
-                          type="button"
-                          onClick={() => {
-                            if (calendarDay) {
-                              handleCalendarDayClick(calendarDay);
-                            }
-                          }}
-                          disabled={!calendarDay}
-                          className={`aspect-square rounded-xl text-sm font-semibold transition ${
-                            !calendarDay
-                              ? "invisible"
-                              : calendarDay === selectedDay
-                                ? "bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg"
-                                : "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
-                          }`}
-                        >
-                          {calendarDay}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
               </div>
             </div>
           </div>

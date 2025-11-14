@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import type { DailySaleRecord, EmployeeRecord } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -33,6 +34,12 @@ function getInitials(name: string): string {
 
 type ViewMode = "list" | "grid" | "compact";
 type SortMode = "date-desc" | "date-asc" | "value-desc" | "value-asc";
+
+type EmployeeEntity = EmployeeRecord;
+type SalesList = DailySaleRecord[];
+type SaleEntity = DailySaleRecord;
+type SalesByDayBucket = { count: number; total: number; sales: SaleEntity[] };
+type SalesByDayMap = Record<string, SalesByDayBucket>;
 
 interface FeedbackState {
   type: "success" | "error";
@@ -120,7 +127,7 @@ export default function EmployeeDetails() {
     },
   );
 
-  const salesList = salesQuery.data ?? [];
+  const salesList: SalesList = (salesQuery.data as SalesList | undefined) ?? [];
 
   useEffect(() => {
     if (!employeeId) {
@@ -154,8 +161,8 @@ export default function EmployeeDetails() {
 
   const totalSales = useMemo(() => {
     if (selectedDate) {
-      return salesList.reduce(
-        (sum, sale) => sum + parseFloat(sale?.amount ?? "0"),
+      return salesList.reduce<number>(
+        (sum, sale: SaleEntity) => sum + parseFloat(sale.amount ?? "0"),
         0,
       );
     }
@@ -164,36 +171,36 @@ export default function EmployeeDetails() {
       return monthSalesQuery.data;
     }
 
-    return salesList.reduce(
-      (sum, sale) => sum + parseFloat(sale?.amount ?? "0"),
+    return salesList.reduce<number>(
+      (sum, sale: SaleEntity) => sum + parseFloat(sale.amount ?? "0"),
       0,
     );
   }, [selectedDate, salesList, monthSalesQuery.data]);
 
   const salesByDay = useMemo(() => {
-    if (!salesList.length) return {};
-    return salesList.reduce((acc, sale) => {
+    if (!salesList.length) return {} as SalesByDayMap;
+    return salesList.reduce<SalesByDayMap>((acc, sale: SaleEntity) => {
       if (!sale?.date) return acc;
       const date = sale.date.split("T")[0];
       if (!acc[date]) {
-        acc[date] = { count: 0, total: 0, sales: [] as typeof salesList };
+        acc[date] = { count: 0, total: 0, sales: [] as SaleEntity[] };
       }
 
       acc[date].count += 1;
       acc[date].total += parseFloat(sale.amount ?? "0");
       acc[date].sales.push(sale);
       return acc;
-    }, {} as Record<string, { count: number; total: number; sales: typeof salesList }>);
+    }, {} as SalesByDayMap);
   }, [salesList]);
 
   const bestDay = useMemo(() => {
-    const entries = Object.entries(salesByDay);
+    const entries = Object.entries(salesByDay) as Array<[string, SalesByDayBucket]>;
     if (!entries.length) return null;
     return entries.sort((a, b) => b[1].total - a[1].total)[0];
   }, [salesByDay]);
 
   const filteredAndSortedSales = useMemo(() => {
-    let filtered = [...salesList];
+    let filtered: SaleEntity[] = [...salesList];
 
     if (searchTerm) {
       filtered = filtered.filter((sale) => {
@@ -240,13 +247,10 @@ export default function EmployeeDetails() {
     return filtered;
   }, [salesList, searchTerm, minValue, maxValue, sortMode]);
 
-  const topDays = useMemo(
-    () =>
-      Object.entries(salesByDay)
-        .sort((a, b) => b[1].total - a[1].total)
-        .slice(0, 3),
-    [salesByDay],
-  );
+  const topDays = useMemo(() => {
+    const entries = Object.entries(salesByDay) as Array<[string, SalesByDayBucket]>;
+    return entries.sort((a, b) => b[1].total - a[1].total).slice(0, 3);
+  }, [salesByDay]);
 
   if (!user) {
     navigate("/login");
@@ -296,7 +300,9 @@ export default function EmployeeDetails() {
     );
   }
 
-  if (!employeeQuery.data) {
+  const employeeData = employeeQuery.data as EmployeeEntity | null | undefined;
+
+  if (!employeeData) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950">
         <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 px-4 py-10 sm:px-6 lg:px-8">
@@ -320,7 +326,7 @@ export default function EmployeeDetails() {
     );
   }
 
-  const employee = employeeQuery.data;
+  const employee = employeeData;
   const salesCount = salesList.length;
   const avgSale = salesCount > 0 ? totalSales / salesCount : 0;
   const daysWithSales = Object.keys(salesByDay).length;
@@ -772,8 +778,8 @@ export default function EmployeeDetails() {
                         <span className="font-semibold text-slate-900">
                           {filteredAndSortedSales.length > 0
                             ? formatCurrency(
-                                filteredAndSortedSales.reduce(
-                                  (sum, sale) => sum + parseFloat(sale.amount),
+                                filteredAndSortedSales.reduce<number>(
+                                  (sum, sale: SaleEntity) => sum + parseFloat(sale.amount),
                                   0,
                                 ) / filteredAndSortedSales.length,
                               )
@@ -862,8 +868,8 @@ export default function EmployeeDetails() {
                           </p>
                           <SensitiveValue className="text-base font-bold text-indigo-700" containerClassName="justify-end">
                             {formatCurrency(
-                              filteredAndSortedSales.reduce(
-                                (sum, sale) => sum + parseFloat(sale.amount),
+                              filteredAndSortedSales.reduce<number>(
+                                (sum, sale: SaleEntity) => sum + parseFloat(sale.amount),
                                 0,
                               ) / filteredAndSortedSales.length,
                             )}
@@ -1104,13 +1110,7 @@ export default function EmployeeDetails() {
 
 interface EditEmployeeDialogProps {
   open: boolean;
-  employee: {
-    id: string;
-    name: string;
-    email?: string | null;
-    phone?: string | null;
-    position?: string | null;
-  };
+  employee: EmployeeEntity;
   onClose: () => void;
   onSaved: (message: string) => void;
   onError: (message: string) => void;

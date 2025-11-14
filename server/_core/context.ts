@@ -2,8 +2,10 @@ import { Request, Response } from "express";
 import { getUser } from "../db.js";
 import { COOKIE_NAME } from "../../shared/const.js";
 import jwt from "jsonwebtoken";
+import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
+import type { Logger } from "pino";
 
-export interface Context {
+export type Context = {
   user: {
     id: string;
     name: string | null;
@@ -12,15 +14,13 @@ export interface Context {
   } | null;
   req: Request;
   res: Response;
-}
+  logger: Logger;
+};
 
 export async function createContext({
   req,
   res,
-}: {
-  req: Request;
-  res: Response;
-}): Promise<Context> {
+}: CreateExpressContextOptions): Promise<Context> {
   let user = null;
 
   try {
@@ -47,9 +47,12 @@ export async function createContext({
     // Token inválido ou expirado, continuar sem usuário
   }
 
+  const logger = req.log; // Pino logger injetado pelo pino-http
+
   return {
     user,
     req,
     res,
+    logger,
   };
 }

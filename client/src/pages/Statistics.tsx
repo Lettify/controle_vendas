@@ -14,6 +14,7 @@ import type { ValueType, NameType } from "recharts/types/component/DefaultToolti
 import type { TooltipContentProps } from "recharts/types/component/Tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import type { DailySaleRecord, EmployeeRecord } from "@/types/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useLocation } from "wouter";
 import EmployeeLink from "@/components/EmployeeLink";
@@ -27,6 +28,30 @@ const monthNames = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
+
+type EmployeeEntity = EmployeeRecord;
+type CompanySale = DailySaleRecord;
+type CompanySales = CompanySale[];
+
+type EmployeePerformance = {
+  employee: EmployeeEntity;
+  total: number;
+  salesCount: number;
+  average: number;
+  sales: CompanySale[];
+  commissionRate: number;
+  commission: number;
+};
+
+type DailyPerformance = {
+  employee: EmployeeEntity;
+  total: number;
+  salesCount: number;
+  average: number;
+  highestSale: number;
+  lowestSale: number;
+  sales: CompanySale[];
+};
 
 // Função para obter data no formato YYYY-MM-DD sem problemas de timezone
 function getLocalDateString(date: Date = new Date()) {
@@ -97,6 +122,10 @@ export default function Statistics() {
     }
   );
 
+  const employeesData: EmployeeEntity[] = (employeesQuery.data as EmployeeEntity[] | undefined) ?? [];
+  const monthlySales: CompanySales = (salesQuery.data as CompanySales | undefined) ?? [];
+  const dailySalesData: CompanySales = (dailySalesQuery.data as CompanySales | undefined) ?? [];
+
   // Restaura filtros quando acessamos um link compartilhado
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -138,37 +167,36 @@ export default function Statistics() {
   }, [selectedMonth, selectedYear, selectedDate, showDailyReport]);
 
   // Calcular estatísticas por funcionário
-  const employeeStats = useMemo(() => {
-    const sales = salesQuery.data || [];
-    const employees = employeesQuery.data || [];
+  const employeeStats = useMemo<EmployeePerformance[]>(() => {
+    const statsByEmployee = new Map<string, { total: number; salesCount: number; sales: CompanySale[] }>();
 
-    const statsByEmployee = new Map();
+    for (const sale of monthlySales) {
+      const amount = parseFloat(String(sale.amount ?? 0));
+      if (Number.isNaN(amount)) continue;
 
-    sales.forEach((sale) => {
-      const current = statsByEmployee.get(sale.employeeId) || {
-        employeeId: sale.employeeId,
+      const current = statsByEmployee.get(sale.employeeId) ?? {
         total: 0,
         salesCount: 0,
-        sales: [],
+        sales: [] as CompanySale[],
       };
 
-      current.total += parseFloat(sale.amount);
+      current.total += amount;
       current.salesCount += 1;
       current.sales.push(sale);
 
       statsByEmployee.set(sale.employeeId, current);
-    });
+    }
 
-    const stats = employees.map((emp) => {
-      const empStats = statsByEmployee.get(emp.id) || {
-        employeeId: emp.id,
+    const stats = employeesData.map<EmployeePerformance>((emp) => {
+      const empStats = statsByEmployee.get(emp.id) ?? {
         total: 0,
         salesCount: 0,
-        sales: [],
+        sales: [] as CompanySale[],
       };
 
       const commissionRate = emp.commissionRate ? parseFloat(emp.commissionRate) : 0.005;
-      const commission = calculateCommission(empStats.total, commissionRate);
+      const safeCommissionRate = Number.isFinite(commissionRate) ? commissionRate : 0.005;
+      const commission = calculateCommission(empStats.total, safeCommissionRate);
 
       return {
         employee: emp,
@@ -176,7 +204,7 @@ export default function Statistics() {
         salesCount: empStats.salesCount,
         average: empStats.salesCount > 0 ? empStats.total / empStats.salesCount : 0,
         sales: empStats.sales,
-        commissionRate,
+        commissionRate: safeCommissionRate,
         commission,
       };
     });
@@ -186,7 +214,7 @@ export default function Statistics() {
       if (sortMode === "sales") return b.salesCount - a.salesCount;
       return a.employee.name.localeCompare(b.employee.name);
     });
-  }, [salesQuery.data, employeesQuery.data, sortMode]);
+  }, [employeesData, monthlySales, sortMode]);
 
   const monthLabel = `${monthNames[selectedMonth - 1]} / ${selectedYear}`;
   const monthlyTotal = totalQuery.data || 0;
@@ -196,25 +224,32 @@ export default function Statistics() {
   const averagePerEmployee = activeEmployees > 0 ? monthlyTotal / activeEmployees : 0;
   const totalCommissions = employeeStats.reduce((sum, item) => sum + item.commission, 0);
 
-  const dailyStats = useMemo(() => {
-    if (!showDailyReport || !dailySalesQuery.data) return [];
+  const dailyStats = useMemo<DailyPerformance[]>(() => {
+    if (!showDailyReport || dailySalesData.length === 0) return [];
 
-    const sales = dailySalesQuery.data;
-    const employees = employeesQuery.data || [];
+    const statsByEmployee = new Map<
+      string,
+      {
+        total: number;
+        salesCount: number;
+        highestSale: number;
+        lowestSale: number;
+        sales: CompanySale[];
+      }
+    >();
 
-    const statsByEmployee = new Map();
+    for (const sale of dailySalesData) {
+      const amount = parseFloat(String(sale.amount ?? 0));
+      if (Number.isNaN(amount)) continue;
 
-    sales.forEach((sale) => {
-      const current = statsByEmployee.get(sale.employeeId) || {
-        employeeId: sale.employeeId,
+      const current = statsByEmployee.get(sale.employeeId) ?? {
         total: 0,
         salesCount: 0,
         highestSale: 0,
-        lowestSale: Infinity,
-        sales: [],
+        lowestSale: Number.POSITIVE_INFINITY,
+        sales: [] as CompanySale[],
       };
 
-      const amount = parseFloat(sale.amount);
       current.total += amount;
       current.salesCount += 1;
       current.highestSale = Math.max(current.highestSale, amount);
@@ -222,9 +257,9 @@ export default function Statistics() {
       current.sales.push(sale);
 
       statsByEmployee.set(sale.employeeId, current);
-    });
+    }
 
-    const stats = employees.flatMap((emp) => {
+    const stats = employeesData.flatMap<DailyPerformance>((emp) => {
       const empStats = statsByEmployee.get(emp.id);
       if (!empStats) return [];
 
@@ -235,21 +270,21 @@ export default function Statistics() {
           salesCount: empStats.salesCount,
           average: empStats.total / empStats.salesCount,
           highestSale: empStats.highestSale,
-          lowestSale: empStats.lowestSale === Infinity ? 0 : empStats.lowestSale,
+          lowestSale: empStats.lowestSale === Number.POSITIVE_INFINITY ? 0 : empStats.lowestSale,
           sales: empStats.sales,
         },
       ];
     });
 
     return stats.sort((a, b) => b.total - a.total);
-  }, [dailySalesQuery.data, employeesQuery.data, showDailyReport]);
+  }, [dailySalesData, employeesData, showDailyReport]);
 
   const dailyTrendData = useMemo(() => {
-    const sales = salesQuery.data || [];
-    const totalsByDay = sales.reduce<Record<string, number>>((acc, sale) => {
-      const key = (sale as { date?: string }).date;
+    const totalsByDay = monthlySales.reduce<Record<string, number>>((acc, sale) => {
+      const key = sale.date;
       if (!key) return acc;
-      const amount = parseFloat(String((sale as { amount?: string | number }).amount ?? 0));
+      const amount = parseFloat(String(sale.amount ?? 0));
+      if (Number.isNaN(amount)) return acc;
       acc[key] = (acc[key] || 0) + amount;
       return acc;
     }, {});
@@ -267,7 +302,7 @@ export default function Statistics() {
         total,
       };
     });
-  }, [salesQuery.data, selectedMonth, selectedYear]);
+  }, [monthlySales, selectedMonth, selectedYear]);
 
   const activeDaysInMonth = useMemo(
     () => dailyTrendData.filter((item) => item.total > 0).length,

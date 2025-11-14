@@ -297,7 +297,9 @@ export const appRouter = router({
           position: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
+        ctx.logger.info({ employeeName: input.name }, "Tentando criar um novo funcionário.");
+
         const id = uuidv4();
         await createEmployee({
           id,
@@ -308,6 +310,9 @@ export const appRouter = router({
           position: input.position,
           isActive: true,
         });
+
+        ctx.logger.info({ employeeId: id }, "Funcionário criado com sucesso.");
+
         return { id };
       }),
 

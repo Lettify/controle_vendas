@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
+import type { EmployeeRecord } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -55,6 +56,9 @@ const VISUAL_PALETTE = [
 ] as const;
 
 const MAP_VISUAL_THRESHOLD = 12;
+
+type EmployeeEntity = EmployeeRecord;
+type EmployeesList = EmployeeEntity[];
 
 function getVisualToken(index: number) {
   return VISUAL_PALETTE[index % VISUAL_PALETTE.length];
@@ -134,20 +138,20 @@ export default function Employees() {
     return null;
   }
 
-  const employees = employeesQuery.data ?? [];
+  const employees: EmployeesList = (employeesQuery.data as EmployeesList | undefined) ?? [];
   const totalEmployees = employees.length;
 
-  const activeEmployees = useMemo(
+  const activeEmployees = useMemo<EmployeeEntity[]>(
     () => employees.filter((employee) => employee.isActive),
     [employees]
   );
 
-  const inactiveEmployees = useMemo(
+  const inactiveEmployees = useMemo<EmployeeEntity[]>(
     () => employees.filter((employee) => !employee.isActive),
     [employees]
   );
 
-  const filteredEmployees = useMemo(() => {
+  const filteredEmployees = useMemo<EmployeeEntity[]>(() => {
     if (employees.length === 0) return [];
     const normalizedTerm = searchTerm.trim().toLowerCase();
 
@@ -227,7 +231,7 @@ export default function Employees() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isAddModalOpen, handleCloseAddModal]);
 
-  const dnaSegments = useMemo(
+  const dnaSegments = useMemo<Array<{ employee: EmployeeEntity; token: ReturnType<typeof getVisualToken> }>>(
     () => employees.map((employee, index) => ({ employee, token: getVisualToken(index) })),
     [employees]
   );

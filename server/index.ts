@@ -5,10 +5,29 @@ import cors from "cors";
 import { createExpressMiddleware } from "@trpc/server/adapters/express";
 import { appRouter } from "./routers";
 import { createContext } from "./_core/context";
+import { env } from "./_core/env";
+import pinoHttp from "pino-http";
+import logger from "./_core/logger";
+import { randomUUID } from "crypto";
 
 const app = express();
+
 // Habilita detecção correta de IP atrás de proxies (útil em produção)
 app.set("trust proxy", 1);
+
+app.use(
+  pinoHttp({
+    logger,
+    // Adiciona um ID de requisição a cada log
+    genReqId: function (req, res) {
+      const existingId = req.id ?? req.headers["x-request-id"];
+      if (existingId) return existingId;
+      const id = randomUUID();
+      res.setHeader("X-Request-Id", id);
+      return id;
+    },
+  }),
+);
 
 // Configuração CORS para desenvolvimento
 const corsOptions = {
@@ -38,9 +57,9 @@ app.use(
   })
 );
 
-const PORT = process.env.PORT || 3000;
+const PORT = env.PORT ?? 3000;
 
-console.log("[Server] DATABASE_URL:", process.env.DATABASE_URL ? "✓ Configurado" : "✗ Não encontrado");
+console.log("[Server] DATABASE_URL:", env.DATABASE_URL ? "✓ Configurado" : "✗ Não encontrado");
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
