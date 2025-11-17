@@ -4,6 +4,7 @@ import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_
 import { z } from "zod";
 import { v4 as uuidv4 } from "uuid";
 import jwt from "jsonwebtoken";
+import { env } from "./_core/env.js";
 import { TRPCError } from "@trpc/server";
 import { RateLimiter, RateLimitError } from "./_core/rateLimiter.js";
 import {
@@ -68,7 +69,7 @@ export const appRouter = router({
         const deviceId = input.deviceId.trim().toLowerCase();
         const deviceLabel = input.deviceLabel?.trim() || null;
 
-        console.log('[LOGIN] Tentando login com código:', codeForLogs);
+        ctx.logger.info({ code: codeForLogs, deviceId }, '[LOGIN] Tentando login com código');
 
         const limiterKey = `${ctx.req.ip ?? "unknown"}:${deviceId}`;
 
@@ -108,13 +109,13 @@ export const appRouter = router({
         const accessCode = await getAccessCodeByCode(normalizedCode);
 
         if (!accessCode) {
-          console.log('[LOGIN] Código não encontrado no banco');
+          ctx.logger.warn({ code: codeForLogs }, '[LOGIN] Código não encontrado no banco');
           throwFailure("Código inválido");
         }
         const codeRecord = accessCode!;
 
         if (!codeRecord.isActive) {
-          console.log('[LOGIN] Código desativado');
+          ctx.logger.warn({ code: codeForLogs, codeId: codeRecord.id }, '[LOGIN] Código desativado');
           throwFailure("Código desativado");
         }
 
@@ -123,13 +124,13 @@ export const appRouter = router({
           codeRecord.expiresAt &&
           new Date(codeRecord.expiresAt) < new Date()
         ) {
-          console.log('[LOGIN] Código expirado');
+          ctx.logger.warn({ code: codeForLogs, codeId: codeRecord.id }, '[LOGIN] Código expirado');
           throwFailure("Código expirado");
         }
 
         const existingDevice = await getAuthorizedDeviceByAccessCode(codeRecord.id);
         if (codeRecord.usedAt && !existingDevice) {
-          console.log('[LOGIN] Código utilizado mas sem dispositivo registrado');
+          ctx.logger.warn({ code: codeForLogs, codeId: codeRecord.id }, '[LOGIN] Código utilizado mas sem dispositivo registrado');
           throwFailure(
             "Este código já está vinculado a outro dispositivo.",
             "FORBIDDEN"
@@ -137,7 +138,7 @@ export const appRouter = router({
         }
 
         if (existingDevice && existingDevice.deviceId !== deviceId) {
-          console.log('[LOGIN] Código já vinculado a outro dispositivo');
+          ctx.logger.warn({ code: codeForLogs, existingDeviceId: existingDevice.deviceId }, '[LOGIN] Código já vinculado a outro dispositivo');
           throwFailure("Este código já está vinculado a outro dispositivo.", "FORBIDDEN");
         }
 
@@ -149,7 +150,7 @@ export const appRouter = router({
             throwFailure("Código já foi utilizado", "FORBIDDEN");
           }
 
-          console.log('[LOGIN] Reutilizando usuário:', codeRecord.usedBy);
+          ctx.logger.info({ reusedBy: codeRecord.usedBy }, '[LOGIN] Reutilizando usuário');
           userId = codeRecord.usedBy;
           const existingUser = await getUser(userId);
 
@@ -159,11 +160,11 @@ export const appRouter = router({
               lastSignedIn: new Date(),
             });
           } else {
-            console.log('[LOGIN] Usuário não encontrado');
+            ctx.logger.error({ userId }, '[LOGIN] Usuário não encontrado');
             throwFailure("Usuário não encontrado", "NOT_FOUND");
           }
         } else {
-          console.log('[LOGIN] Criando novo usuário');
+          ctx.logger.info({ code: codeForLogs }, '[LOGIN] Criando novo usuário');
           userId = uuidv4();
           await upsertUser({
             id: userId,
@@ -185,28 +186,33 @@ export const appRouter = router({
             deviceId,
             ...(deviceName ? { deviceName } : {}),
           });
-          console.log('[LOGIN] Dispositivo registrado para o código', codeRecord.code);
+          ctx.logger.info({ code: codeForLogs, deviceId }, '[LOGIN] Dispositivo registrado para o código');
         } else {
           await touchAuthorizedDevice(existingDevice.id, deviceName);
-          console.log('[LOGIN] Dispositivo autorizado reconhecido', existingDevice.deviceId);
+          ctx.logger.info({ existingDeviceId: existingDevice.deviceId }, '[LOGIN] Dispositivo autorizado reconhecido');
         }
 
         loginRateLimiter.reset(limiterKey);
 
+        if (!env.JWT_SECRET) {
+          // Safety: should never happen in production because env enforces presence
+          ctx.logger.error('[LOGIN] JWT_SECRET ausente nas configurações');
+          throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Server misconfiguration' });
+        }
+
         const token = jwt.sign(
           { userId },
-          process.env.JWT_SECRET || "secret",
+          env.JWT_SECRET,
           { expiresIn: "7d" }
         );
-        console.log('[LOGIN] Token JWT criado:', token.substring(0, 20) + '...');
+        ctx.logger.info({ userId }, '[LOGIN] Token JWT criado');
 
         const cookieOptions = getSessionCookieOptions(ctx.req);
-        console.log('[LOGIN] Opções do cookie:', cookieOptions);
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
-        console.log('[LOGIN] Cookie definido com nome:', COOKIE_NAME);
+        ctx.logger.info({ cookieName: COOKIE_NAME }, '[LOGIN] Cookie de sessão definido');
 
         const user = await getUser(userId);
-        console.log('[LOGIN] Login bem-sucedido para usuário:', user?.name);
+        ctx.logger.info({ userId: user?.id }, '[LOGIN] Login bem-sucedido para usuário');
         return {
           success: true,
           user: {

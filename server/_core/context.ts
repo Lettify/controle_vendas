@@ -2,8 +2,10 @@ import { Request, Response } from "express";
 import { getUser } from "../db.js";
 import { COOKIE_NAME } from "../../shared/const.js";
 import jwt from "jsonwebtoken";
+import { env } from "./env.js";
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { Logger } from "pino";
+import baseLogger from "./logger.js";
 
 export type Context = {
   user: {
@@ -27,7 +29,7 @@ export async function createContext({
     const token = req.cookies[COOKIE_NAME];
     console.log('[Context] Cookie encontrado:', token ? 'SIM' : 'NÃO');
     if (token) {
-      const decoded = jwt.verify(token, process.env.JWT_SECRET || "secret") as {
+      const decoded = jwt.verify(token, env.JWT_SECRET) as {
         userId: string;
       };
       console.log('[Context] Token decodificado, userId:', decoded.userId);
@@ -47,7 +49,9 @@ export async function createContext({
     // Token inválido ou expirado, continuar sem usuário
   }
 
-  const logger = req.log; // Pino logger injetado pelo pino-http
+  // Pino logger injetado pelo pino-http em ambientes com middleware.
+  // Em ambientes serverless (Vercel) `req.log` pode não existir, então usamos um logger padrão.
+  const logger: Logger = (req as any).log ?? baseLogger;
 
   return {
     user,
