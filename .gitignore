@@ -10,6 +10,6 @@ dist
 .next
 .env*.local
 coverage
-README.md
 SETUP_LOCAL.md
 TODO.md
+.vercel

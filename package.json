@@ -13,7 +13,8 @@
     "db:push": "drizzle-kit push",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "vercel-status": "vercel ls"
   },
   "keywords": [
     "vendas",
@@ -70,6 +71,7 @@
     "concurrently": "^8.2.2",
     "dotenv": "^17.2.3",
     "drizzle-kit": "^0.31.6",
-    "esbuild": "^0.27.0"
+    "esbuild": "^0.27.0",
+    "vercel": "^35.2.1"
   }
 }
