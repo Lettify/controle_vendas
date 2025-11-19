@@ -3,7 +3,7 @@ import { getUser } from "../db.js";
 import { COOKIE_NAME } from "../../shared/const.js";
 import jwt from "jsonwebtoken";
 import { env } from "./env.js";
-import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
+// Aceita qualquer objeto com req e res para compatibilidade com mocks/fetch
 import type { Logger } from "pino";
 import baseLogger from "./logger.js";
 
@@ -23,7 +23,7 @@ export type Context = {
 export async function createContext({
   req,
   res,
-}: CreateExpressContextOptions): Promise<Context> {
+}: { req: any; res: any }): Promise<Context> {
   let user = null;
 
   try {
