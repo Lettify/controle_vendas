@@ -1,6 +1,7 @@
 import { initTRPC, TRPCError } from "@trpc/server";
 import type { Context } from "./context.js";
 import { RateLimitError, RateLimiter } from "./rateLimiter.js";
+import { validateCsrf } from "./csrf.js";
 
 const t = initTRPC.context<Context>().create();
 
@@ -63,6 +64,15 @@ const rateLimiterMiddleware = t.middleware(async ({ ctx, path, type, next }) => 
   }
 });
 
+const csrfMiddleware = t.middleware(async ({ ctx, type, next }) => {
+  if (type === "mutation") {
+    if (!validateCsrf(ctx.req)) {
+      throw new TRPCError({ code: "FORBIDDEN", message: "CSRF token inválido ou ausente." });
+    }
+  }
+  return next();
+});
+
 // Middlewares
 const loggerMiddleware = t.middleware(async ({ path, type, next, ctx }) => {
   const start = Date.now();
@@ -74,8 +84,7 @@ const loggerMiddleware = t.middleware(async ({ path, type, next, ctx }) => {
 });
 
 // Procedimentos
-export const publicProcedure = t.procedure.use(loggerMiddleware);
-export const protectedProcedure = t.procedure.use(isAuthed).use(loggerMiddleware);
-export const privateProcedure = protectedProcedure;
-export const adminProcedure = t.procedure.use(isAuthed).use(isAdmin).use(loggerMiddleware);
+export const publicProcedure = t.procedure.use(loggerMiddleware).use(rateLimiterMiddleware);
+export const protectedProcedure = t.procedure.use(isAuthed).use(csrfMiddleware).use(loggerMiddleware).use(rateLimiterMiddleware);
+export const adminProcedure = t.procedure.use(isAuthed).use(isAdmin).use(csrfMiddleware).use(loggerMiddleware).use(rateLimiterMiddleware);
 export const rateLimitedProcedure = t.procedure.use(rateLimiterMiddleware).use(loggerMiddleware);

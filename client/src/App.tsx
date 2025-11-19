@@ -7,6 +7,7 @@ import { trpc } from "./lib/trpc";
 import { useAuth } from "./hooks/useAuth";
 import Navbar from "./components/Navbar";
 import { PageHeaderProvider } from "./contexts/PageHeaderContext";
+import { getCsrfToken } from "./lib/csrf";
 
 const Login = lazy(() => import("./pages/Login"));
 const Home = lazy(() => import("./pages/Home"));
@@ -112,10 +113,18 @@ export default function App() {
       links: [
         httpLink({
           url: getApiUrl(),
-          fetch(url, options) {
+          async fetch(url, options) {
+            // Adiciona o token CSRF em mutações
+            const isMutation = options?.body && JSON.parse(options.body as string)?.method === "mutation";
+            let headers = options?.headers || {};
+            if (isMutation) {
+              const token = await getCsrfToken();
+              headers = { ...headers, "x-csrf-token": token };
+            }
             return fetch(url, {
               ...options,
               credentials: 'include',
+              headers,
             });
           },
         }),

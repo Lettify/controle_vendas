@@ -33,6 +33,7 @@ import {
   getAuthorizedDeviceByAccessCode,
   touchAuthorizedDevice,
 } from "./db.js";
+import { getCsrfToken, CSRF_COOKIE } from "./_core/csrf.js";
 
 const loginRateLimiter = new RateLimiter({
   windowMs: 60_000,
@@ -41,6 +42,12 @@ const loginRateLimiter = new RateLimiter({
 });
 
 export const appRouter = router({
+  csrf: publicProcedure.query(({ ctx }) => {
+    // Gera e retorna o token CSRF, setando o cookie se necessário
+    const token = getCsrfToken(ctx.req, ctx.res);
+    return { csrfToken: token, cookieName: CSRF_COOKIE };
+  }),
+
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     
