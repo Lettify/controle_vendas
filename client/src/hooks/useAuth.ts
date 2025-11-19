@@ -1,13 +1,11 @@
 import { trpc } from "@/lib/trpc";
+import { useContext } from "react";
+import { TRPCContext } from "@trpc/react-query";
+import { getCsrfToken } from "@/lib/csrf";
 
 export function useAuth() {
   const { data: user, isLoading, error } = trpc.auth.me.useQuery();
-  const logoutMutation = trpc.auth.logout.useMutation({
-    onSuccess: () => {
-      // Força um reload da página para limpar o cache
-      window.location.href = "/login";
-    },
-  });
+  const trpcContext = useContext(TRPCContext);
 
   return {
     user,
@@ -15,9 +13,12 @@ export function useAuth() {
     error,
     isAuthenticated: !!user,
     logout: async () => {
-      // Garante que o token CSRF está atualizado antes do mutate
-      await import("@/lib/csrf").then(mod => mod.getCsrfToken());
-      logoutMutation.mutate();
+      // Chama logout via client tRPC diretamente, garantindo header CSRF
+      const token = await getCsrfToken();
+      await trpcContext.client.mutation(["auth.logout"], undefined, {
+        headers: { "x-csrf-token": token },
+      });
+      window.location.href = "/login";
     },
   };
 }
