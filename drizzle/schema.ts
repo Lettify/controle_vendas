@@ -1,4 +1,4 @@
-import { pgTable, varchar, text, timestamp, decimal, boolean, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, timestamp, decimal, boolean, pgEnum, uniqueIndex, integer } from "drizzle-orm/pg-core";
 
 /**
  * Enums
@@ -15,6 +15,7 @@ export const users = pgTable("users", {
   role: userRoleEnum("role").default("user").notNull(),
   createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
   lastSignedIn: timestamp("last_signed_in", { mode: 'date', withTimezone: true }).defaultNow(),
+  sessionVersion: integer("session_version").default(1).notNull(),
 });
 
 export type User = typeof users.$inferSelect;

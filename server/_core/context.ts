@@ -13,6 +13,7 @@ export type Context = {
     name: string | null;
     email: string | null;
     role: "user" | "admin";
+    sessionVersion: number;
   } | null;
   req: Request;
   res: Response;
@@ -31,17 +32,27 @@ export async function createContext({
     if (token) {
       const decoded = jwt.verify(token, env.JWT_SECRET) as {
         userId: string;
+        sessionVersion?: number;
       };
       console.log('[Context] Token decodificado, userId:', decoded.userId);
       const dbUser = await getUser(decoded.userId);
       console.log('[Context] Usuário do banco:', dbUser?.name);
       if (dbUser) {
-        user = {
-          id: dbUser.id,
-          name: dbUser.name,
-          email: dbUser.email,
-          role: dbUser.role as "user" | "admin",
-        };
+        // Se o token não tem sessionVersion ou está diferente do banco, rejeita
+        if (
+          typeof decoded.sessionVersion !== 'number' ||
+          decoded.sessionVersion !== dbUser.sessionVersion
+        ) {
+          console.log('[Context] sessionVersion inválido ou desatualizado. Token rejeitado.');
+        } else {
+          user = {
+            id: dbUser.id,
+            name: dbUser.name,
+            email: dbUser.email,
+            role: dbUser.role as "user" | "admin",
+            sessionVersion: dbUser.sessionVersion,
+          };
+        }
       }
     }
   } catch (error) {

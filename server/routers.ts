@@ -51,8 +51,21 @@ export const appRouter = router({
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     
-    logout: publicProcedure.mutation(({ ctx }) => {
+    logout: protectedProcedure.mutation(async ({ ctx }) => {
       const { maxAge: _maxAge, ...cookieOptions } = getSessionCookieOptions(ctx.req);
+
+      // Rota a sessionVersion do usuário autenticado
+      if (ctx.user?.id) {
+        const db = await import("./db.js");
+        const user = await db.getUser(ctx.user.id);
+        if (user) {
+          await db.upsertUser({
+            id: ctx.user.id,
+            sessionVersion: (user.sessionVersion || 1) + 1,
+          });
+          ctx.logger.info({ userId: ctx.user.id }, '[LOGOUT] sessionVersion rotacionada');
+        }
+      }
 
       ctx.res.clearCookie(COOKIE_NAME, {
         ...cookieOptions,
@@ -207,8 +220,15 @@ export const appRouter = router({
           throw new TRPCError({ code: 'INTERNAL_SERVER_ERROR', message: 'Server misconfiguration' });
         }
 
+        const user = await getUser(userId);
+        if (!user) {
+          ctx.logger.error({ userId }, '[LOGIN] Usuário não encontrado após criação');
+          throwFailure("Usuário não encontrado", "NOT_FOUND");
+        }
+
+        // Inclui sessionVersion no JWT
         const token = jwt.sign(
-          { userId },
+          { userId, sessionVersion: user!.sessionVersion },
           env.JWT_SECRET,
           { expiresIn: "7d" }
         );
@@ -218,15 +238,15 @@ export const appRouter = router({
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
         ctx.logger.info({ cookieName: COOKIE_NAME }, '[LOGIN] Cookie de sessão definido');
 
-        const user = await getUser(userId);
-        ctx.logger.info({ userId: user?.id }, '[LOGIN] Login bem-sucedido para usuário');
+        ctx.logger.info({ userId: user!.id }, '[LOGIN] Login bem-sucedido para usuário');
         return {
           success: true,
           user: {
-            id: user?.id,
-            name: user?.name,
-            email: user?.email,
-            role: user?.role,
+            id: user!.id,
+            name: user!.name,
+            email: user!.email,
+            role: user!.role,
+            sessionVersion: user!.sessionVersion,
           },
         };
       }),
