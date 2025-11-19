@@ -14,6 +14,10 @@ export function useAuth() {
     loading: isLoading,
     error,
     isAuthenticated: !!user,
-    logout: () => logoutMutation.mutate(),
+    logout: async () => {
+      // Garante que o token CSRF está atualizado antes do mutate
+      await import("@/lib/csrf").then(mod => mod.getCsrfToken());
+      logoutMutation.mutate();
+    },
   };
 }
