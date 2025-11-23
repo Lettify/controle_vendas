@@ -112,7 +112,7 @@ export default function Sales() {
   );
 
   const createSaleMutation = trpc.sales.create.useMutation({
-    onMutate: async (variables) => {
+    onMutate: async () => {
       // Log para depuração do CSRF
       const { getCsrfToken } = await import("@/lib/csrf");
       try {
