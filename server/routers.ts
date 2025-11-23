@@ -239,7 +239,6 @@ export const appRouter = router({
         ctx.logger.info({ cookieName: COOKIE_NAME }, '[LOGIN] Cookie de sessão definido');
 
         // Garante que o cookie CSRF seja setado junto com o login
-        import { getCsrfToken } from "./_core/csrf.js";
         getCsrfToken(ctx.req, ctx.res);
 
         ctx.logger.info({ userId: user!.id }, '[LOGIN] Login bem-sucedido para usuário');
