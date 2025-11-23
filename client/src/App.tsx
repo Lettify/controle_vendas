@@ -105,8 +105,8 @@ export default function App() {
         return `${window.location.origin}/api/trpc`;
       }
       
-      // Em desenvolvimento, usar localhost
-      return "http://localhost:3000/trpc";
+      // Em desenvolvimento, usar proxy do Vite para manter mesma origem
+      return "/trpc";
     };
 
     return trpc.createClient({

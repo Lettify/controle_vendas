@@ -1,4 +1,4 @@
-import { eq, and, gte, lte, desc } from "drizzle-orm";
+import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import { 
@@ -252,15 +252,65 @@ export async function getEmployee(id: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-export async function getEmployeesByCompany(companyId: string) {
+export async function getEmployeesByCompany(
+  companyId: string,
+  options: {
+    limit: number;
+    offset: number;
+    searchTerm?: string;
+    statusFilter?: 'active' | 'inactive';
+  }
+) {
   const db = await getDb();
-  if (!db) return [];
+  if (!db) return { employees: [], total: 0 };
 
-  return await db
+  const { limit, offset, searchTerm, statusFilter } = options;
+
+  // Condições base da consulta
+  const conditions = [eq(employees.companyId, companyId)];
+
+  // Filtro por status
+  if (statusFilter === 'active') {
+    conditions.push(eq(employees.isActive, true));
+  } else if (statusFilter === 'inactive') {
+    conditions.push(eq(employees.isActive, false));
+  }
+
+  // Filtro por termo de busca (nome, email ou cargo)
+  if (searchTerm) {
+    const term = `%${searchTerm.toLowerCase()}%`;
+    conditions.push(
+      sql`lower(${employees.name}) LIKE ${term} OR lower(${employees.email}) LIKE ${term} OR lower(${employees.position}) LIKE ${term}`
+    );
+  }
+
+  // Consulta para buscar os funcionários paginados
+  const paginatedEmployeesQuery = db
     .select()
     .from(employees)
-    .where(eq(employees.companyId, companyId))
-    .orderBy(employees.name);
+    .where(and(...conditions))
+    .orderBy(employees.name)
+    .limit(limit)
+    .offset(offset);
+
+  // Consulta para contar o total de funcionários que correspondem aos filtros
+  const totalCountQuery = db
+    .select({
+      count: sql<number>`count(*)`.mapWith(Number),
+    })
+    .from(employees)
+    .where(and(...conditions));
+
+  // Executa as duas consultas em paralelo
+  const [paginatedEmployees, totalCountResult] = await Promise.all([
+    paginatedEmployeesQuery,
+    totalCountQuery,
+  ]);
+
+  return {
+    employees: paginatedEmployees,
+    total: totalCountResult[0]?.count ?? 0,
+  };
 }
 
 export async function getActiveEmployeesByCompany(companyId: string) {

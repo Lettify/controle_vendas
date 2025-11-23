@@ -350,9 +350,24 @@ export const appRouter = router({
       }),
 
     list: protectedProcedure
-      .input(z.object({ companyId: z.string() }))
+      .input(
+        z.object({
+          companyId: z.string(),
+          limit: z.number().min(1).max(100).optional(),
+          offset: z.number().min(0).optional(),
+          searchTerm: z.string().optional(),
+          statusFilter: z.enum(['active', 'inactive']).optional(),
+        })
+      )
       .query(async ({ input }) => {
-        return await getEmployeesByCompany(input.companyId);
+        const limit = input.limit ?? 10;
+        const offset = input.offset ?? 0;
+        return await getEmployeesByCompany(input.companyId, {
+          limit,
+          offset,
+          searchTerm: input.searchTerm,
+          statusFilter: input.statusFilter,
+        });
       }),
 
     listActive: protectedProcedure

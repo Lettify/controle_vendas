@@ -92,6 +92,8 @@ export default function Employees() {
   const [viewMode, setViewMode] = useState<'mosaic' | 'table'>('mosaic');
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
+  const [page, setPage] = useState(0);
+  const [pageSize] = useState(12);
   const [spotlightIndex, setSpotlightIndex] = useState(0);
   const flowSectionRef = useRef<HTMLElement | null>(null);
 
@@ -100,7 +102,13 @@ export default function Employees() {
     setNewEmployee({ name: "", email: "", phone: "", position: "" });
   }, []);
 
-  const employeesQuery = trpc.employees.list.useQuery({ companyId: COMPANY_ID });
+  const employeesQuery = trpc.employees.list.useQuery({
+    companyId: COMPANY_ID,
+    limit: pageSize,
+    offset: page * pageSize,
+    searchTerm: searchTerm || undefined,
+    statusFilter: statusFilter === 'all' ? undefined : statusFilter,
+  });
   const createMutation = trpc.employees.create.useMutation({
     onSuccess: () => {
       handleCloseAddModal();
@@ -138,8 +146,8 @@ export default function Employees() {
     return null;
   }
 
-  const employees: EmployeesList = (employeesQuery.data as EmployeesList | undefined) ?? [];
-  const totalEmployees = employees.length;
+  const employees: EmployeesList = (employeesQuery.data as any)?.employees ?? [];
+  const totalEmployees = (employeesQuery.data as any)?.total ?? 0;
 
   const activeEmployees = useMemo<EmployeeEntity[]>(
     () => employees.filter((employee) => employee.isActive),
@@ -151,25 +159,7 @@ export default function Employees() {
     [employees]
   );
 
-  const filteredEmployees = useMemo<EmployeeEntity[]>(() => {
-    if (employees.length === 0) return [];
-    const normalizedTerm = searchTerm.trim().toLowerCase();
-
-    return employees.filter((employee) => {
-      const matchesStatus =
-        statusFilter === 'all' ? true : statusFilter === 'active' ? employee.isActive : !employee.isActive;
-
-      if (!matchesStatus) return false;
-
-      if (!normalizedTerm) return true;
-
-      const haystack = [employee.name, employee.email, employee.position]
-        .filter(Boolean)
-        .map((value) => value!.toLowerCase());
-
-      return haystack.some((value) => value.includes(normalizedTerm));
-    });
-  }, [employees, searchTerm, statusFilter]);
+  // NOTE: Server-side pagination and filtering are used; `employees` contains the current page.
 
   const activationRate = totalEmployees > 0 ? Math.round((activeEmployees.length / totalEmployees) * 100) : 0;
   const inactivityRate = totalEmployees > 0 ? Math.round((inactiveEmployees.length / totalEmployees) * 100) : 0;
@@ -237,13 +227,19 @@ export default function Employees() {
   );
 
   const isLoading = employeesQuery.isLoading;
-  const hasGlobalEmptyState = !isLoading && employees.length === 0;
-  const hasFilteredEmptyState = !isLoading && employees.length > 0 && filteredEmployees.length === 0;
+  const hasGlobalEmptyState = !isLoading && totalEmployees === 0;
+  const hasFilteredEmptyState = !isLoading && totalEmployees > 0 && employees.length === 0;
 
   const resetFilters = () => {
     setSearchTerm("");
     setStatusFilter('all');
+    setPage(0);
   };
+
+  // Reset page when filters change
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, statusFilter, pageSize]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -475,8 +471,8 @@ export default function Employees() {
                   </button>
                 ))}
               </div>
-              <span className="text-[11px] text-indigo-500">
-                {filteredEmployees.length} resultado{filteredEmployees.length === 1 ? '' : 's'} visíveis agora.
+                <span className="text-[11px] text-indigo-500">
+                {employees.length} resultado{employees.length === 1 ? '' : 's'} visíveis agora.
               </span>
             </div>
 
@@ -499,15 +495,15 @@ export default function Employees() {
             </div>
           </div>
         </section>
-        {totalEmployees > 0 && filteredEmployees.length > 0 && (
+        {totalEmployees > 0 && employees.length > 0 && (
           <section ref={flowSectionRef} className="space-y-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div>
                 <h2 className="text-xl font-bold text-indigo-900">Painel dinâmico de talentos</h2>
                 <p className="text-sm text-indigo-600">Arraste para navegar pelos colaboradores e acessar informações essenciais rapidamente.</p>
               </div>
-              <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-indigo-500">
-                <span>{filteredEmployees.length} perfis na visualização</span>
+                <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-indigo-500">
+                <span>{employees.length} perfis na visualização</span>
                 <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
                 <span>{new Date().toLocaleDateString('pt-BR')}</span>
                 <span className="rounded-full border border-indigo-100 bg-indigo-50/70 px-3 py-1 text-[11px] font-semibold text-indigo-600">
@@ -518,7 +514,7 @@ export default function Employees() {
 
             <div className="overflow-x-auto rounded-3xl border border-indigo-100 bg-white/80 backdrop-blur shadow-xl">
               <div className="flex min-w-max items-stretch gap-5 px-6 py-6">
-                {filteredEmployees.map((employee, index) => {
+                {employees.map((employee, index) => {
                   const token = getVisualToken(index);
                   return (
                     <div
@@ -669,7 +665,7 @@ export default function Employees() {
           <section>
             {viewMode === 'mosaic' ? (
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {filteredEmployees.map((employee, index) => {
+                {employees.map((employee, index) => {
                   const token = getVisualToken(index);
                   const isActive = employee.isActive;
 
@@ -786,7 +782,7 @@ export default function Employees() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 bg-white text-sm">
-                        {filteredEmployees.map((employee, index) => {
+                        {employees.map((employee, index) => {
                           const token = getVisualToken(index);
                           return (
                             <tr key={employee.id} className="hover:bg-slate-50/70">
@@ -992,6 +988,36 @@ export default function Employees() {
                   </div>
                 </form>
               </div>
+            </div>
+          </div>
+        )}
+        {/* Paginação simples: Anterior / Próximo */}
+        {!isLoading && totalEmployees > 0 && (
+          <div className="mt-6 flex items-center justify-between">
+            <div className="text-sm text-indigo-700">
+              Mostrando <strong>{page * pageSize + 1}</strong>–<strong>{Math.min((page + 1) * pageSize, totalEmployees)}</strong> de <strong>{totalEmployees}</strong>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <Button
+                onClick={() => setPage((p) => Math.max(0, p - 1))}
+                disabled={page === 0 || employeesQuery.isFetching}
+                variant="outline"
+                className="rounded-xl"
+              >
+                Anterior
+              </Button>
+
+              <span className="text-sm text-indigo-600">Página {page + 1} de {Math.max(1, Math.ceil(totalEmployees / pageSize))}</span>
+
+              <Button
+                onClick={() => setPage((p) => p + 1)}
+                disabled={(page + 1) * pageSize >= totalEmployees || employeesQuery.isFetching}
+                variant="outline"
+                className="rounded-xl"
+              >
+                Próximo
+              </Button>
             </div>
           </div>
         )}
