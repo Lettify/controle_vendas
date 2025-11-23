@@ -112,6 +112,16 @@ export default function Sales() {
   );
 
   const createSaleMutation = trpc.sales.create.useMutation({
+    onMutate: async (variables) => {
+      // Log para depuração do CSRF
+      const { getCsrfToken } = await import("@/lib/csrf");
+      try {
+        const token = await getCsrfToken();
+        console.log("[CSRF] Token enviado na mutação de venda:", token);
+      } catch (err) {
+        console.error("[CSRF] Erro ao buscar token CSRF:", err);
+      }
+    },
     onSuccess: () => {
       setAmount("");
       salesQuery.refetch();
