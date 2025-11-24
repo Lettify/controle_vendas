@@ -71,11 +71,12 @@ export default async function handler(req: any, res: any) {
               opts.resHeaders.set(name, value);
             },
             cookie: (name: string, value: string, options?: any) => {
-              let cookieStr = `${name}=${value}`;
+              let cookieStr = `${name}=${encodeURIComponent(value)}`;
               if (options?.httpOnly) cookieStr += "; HttpOnly";
               if (options?.secure) cookieStr += "; Secure";
               if (options?.sameSite) cookieStr += `; SameSite=${options.sameSite}`;
-              if (options?.maxAge) cookieStr += `; Max-Age=${options.maxAge}`;
+              // Express usa maxAge em ms, mas Set-Cookie header usa segundos
+              if (options?.maxAge) cookieStr += `; Max-Age=${Math.floor(options.maxAge / 1000)}`;
               if (options?.path) cookieStr += `; Path=${options.path}`;
               opts.resHeaders.append("Set-Cookie", cookieStr);
             },
