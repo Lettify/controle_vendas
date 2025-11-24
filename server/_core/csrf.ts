@@ -10,12 +10,14 @@ export function getCsrfToken(req: Request, res: Response): string {
     token = crypto.randomBytes(32).toString("hex");
     // Detecta produção (Vercel) pelo domínio
     const isProd = process.env.NODE_ENV === "production" || req.hostname?.includes("vercel.app");
+    // Flags idênticas ao cookie de sessão
     res.cookie(CSRF_COOKIE, token, {
       httpOnly: false, // visível ao JS
-      sameSite: isProd ? "none" : "lax",
+      sameSite: isProd ? "none" : "strict",
       secure: isProd ? true : req.protocol === "https",
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/",
+      domain: isProd ? req.hostname : undefined,
     });
   }
   return token;
