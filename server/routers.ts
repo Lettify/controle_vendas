@@ -246,7 +246,6 @@ export const appRouter = router({
           secure: cookieOptions.secure,
           maxAge: cookieOptions.maxAge,
           path: cookieOptions.path,
-          domain: cookieOptions.domain,
         });
 
         ctx.logger.info({ userId: user!.id }, '[LOGIN] Login bem-sucedido para usuário');
