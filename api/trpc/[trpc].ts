@@ -45,7 +45,7 @@ export default async function handler(req: any, res: any) {
           // Adaptar contexto para Vercel (compatível com Express)
           const cookieHeader = opts.req.headers.get("cookie") || "";
           const cookies: Record<string, string> = {};
-          
+
           cookieHeader.split(";").forEach((cookie) => {
             const [key, value] = cookie.trim().split("=");
             if (key && value) {
@@ -103,7 +103,11 @@ export default async function handler(req: any, res: any) {
 
     // Aplicar headers CORS
     res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+    const origin = req.headers.origin;
+    // Se houver origin, reflete ele. Caso contrário, não envia *, pois credentials=true não permite *
+    if (origin) {
+      res.setHeader("Access-Control-Allow-Origin", origin);
+    }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
 

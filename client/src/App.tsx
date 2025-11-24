@@ -95,18 +95,18 @@ export default function App() {
   const [trpcClient] = useState(() => {
     // Detectar URL da API baseado no ambiente
     const getApiUrl = () => {
-      // Se VITE_API_URL está definido, usar ele
+      // Em desenvolvimento, SEMPRE usar o proxy do Vite para evitar problemas de CORS/Cookies
+      if (import.meta.env.DEV) {
+        return "/trpc";
+      }
+
+      // Se VITE_API_URL está definido (produção/staging), usar ele
       if (import.meta.env.VITE_API_URL) {
         return `${import.meta.env.VITE_API_URL}/trpc`;
       }
-      
-      // Em produção, usar o próprio domínio
-      if (import.meta.env.PROD) {
-        return `${window.location.origin}/api/trpc`;
-      }
-      
-      // Em desenvolvimento, usar proxy do Vite para manter mesma origem
-      return "/trpc";
+
+      // Fallback para produção: usar o próprio domínio
+      return `${window.location.origin}/api/trpc`;
     };
 
     return trpc.createClient({

@@ -235,6 +235,7 @@ export const appRouter = router({
         ctx.logger.info({ userId }, '[LOGIN] Token JWT criado');
 
         const cookieOptions = getSessionCookieOptions(ctx.req);
+        ctx.logger.info({ cookieName: COOKIE_NAME, jwtToken: token }, '[LOGIN] Definindo cookie de sessão');
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
         ctx.logger.info({ cookieName: COOKIE_NAME, cookieOptions }, '[LOGIN] Cookie de sessão definido');
 

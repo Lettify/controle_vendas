@@ -12,10 +12,10 @@ import { randomUUID } from "crypto";
 import rateLimit from 'express-rate-limit';
 
 const limiter = rateLimit({
-	windowMs: 15 * 60 * 1000, // 15 minutos
-	max: 100, // Limita cada IP a 100 requisições por janela
-	standardHeaders: true, // Retorna informações do limite nos cabeçalhos `RateLimit-*`
-	legacyHeaders: false, // Desabilita os cabeçalhos `X-RateLimit-*`
+  windowMs: 15 * 60 * 1000, // 15 minutos
+  max: 100, // Limita cada IP a 100 requisições por janela
+  standardHeaders: true, // Retorna informações do limite nos cabeçalhos `RateLimit-*`
+  legacyHeaders: false, // Desabilita os cabeçalhos `X-RateLimit-*`
 });
 
 const app = express();
@@ -66,6 +66,11 @@ if (env.NODE_ENV !== 'production') {
       method: req.method,
       path: req.path,
       cookies: req.cookies,
+      headers: {
+        origin: req.headers.origin,
+        referer: req.headers.referer,
+        'user-agent': req.headers['user-agent']
+      }
     }, '[Request Debug]');
     next();
   });
