@@ -13,11 +13,11 @@ export function getCsrfToken(req: Request, res: Response): string {
     // Flags idênticas ao cookie de sessão
     res.cookie(CSRF_COOKIE, token, {
       httpOnly: false, // visível ao JS
-      sameSite: isProd ? "none" : "strict",
+      sameSite: "lax",
       secure: isProd ? true : req.protocol === "https",
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/",
-      domain: isProd ? req.hostname : undefined,
+      // Removido domain para compatibilidade máxima
     });
   }
   return token;

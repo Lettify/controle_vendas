@@ -50,7 +50,7 @@ export const appRouter = router({
 
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
-    
+
     logout: protectedProcedure.mutation(async ({ ctx }) => {
       const { maxAge: _maxAge, ...cookieOptions } = getSessionCookieOptions(ctx.req);
 
@@ -239,15 +239,8 @@ export const appRouter = router({
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
         ctx.logger.info({ cookieName: COOKIE_NAME, cookieOptions }, '[LOGIN] Cookie de sessão definido');
 
-        // Definir o cookie CSRF com as mesmas flags do cookie de sessão
-        const csrfToken = getCsrfToken(ctx.req, ctx.res);
-        ctx.res.cookie('csrf_token', csrfToken, {
-          httpOnly: false,
-          sameSite: cookieOptions.sameSite,
-          secure: cookieOptions.secure,
-          maxAge: cookieOptions.maxAge,
-          path: cookieOptions.path,
-        });
+
+        // CSRF token já foi definido por getCsrfToken()
 
         ctx.logger.info({ userId: user!.id }, '[LOGIN] Login bem-sucedido para usuário');
         return {
