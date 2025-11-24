@@ -46,6 +46,8 @@ export default async function handler(req: any, res: any) {
           const cookieHeader = opts.req.headers.get("cookie") || "";
           const cookies: Record<string, string> = {};
 
+          console.log('[API] Received cookie header:', cookieHeader || '(empty)');
+
           cookieHeader.split(";").forEach((cookie) => {
             const [key, value] = cookie.trim().split("=");
             if (key && value) {
@@ -71,13 +73,20 @@ export default async function handler(req: any, res: any) {
               opts.resHeaders.set(name, value);
             },
             cookie: (name: string, value: string, options?: any) => {
-              let cookieStr = `${name}=${encodeURIComponent(value)}`;
+              let cookieStr = `${name}=${value}`;
               if (options?.httpOnly) cookieStr += "; HttpOnly";
               if (options?.secure) cookieStr += "; Secure";
-              if (options?.sameSite) cookieStr += `; SameSite=${options.sameSite}`;
+              // Capitalizar SameSite conforme especificação (Lax, Strict, None)
+              if (options?.sameSite) {
+                const sameSite = String(options.sameSite);
+                const capitalized = sameSite.charAt(0).toUpperCase() + sameSite.slice(1).toLowerCase();
+                cookieStr += `; SameSite=${capitalized}`;
+              }
               // Express usa maxAge em ms, mas Set-Cookie header usa segundos
               if (options?.maxAge) cookieStr += `; Max-Age=${Math.floor(options.maxAge / 1000)}`;
               if (options?.path) cookieStr += `; Path=${options.path}`;
+
+              console.log('[API] Setting cookie:', cookieStr.substring(0, 100) + '...');
               opts.resHeaders.append("Set-Cookie", cookieStr);
             },
             clearCookie: (name: string, options?: any) => {
