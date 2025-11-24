@@ -236,7 +236,7 @@ export const appRouter = router({
 
         const cookieOptions = getSessionCookieOptions(ctx.req);
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
-        ctx.logger.info({ cookieName: COOKIE_NAME }, '[LOGIN] Cookie de sessão definido');
+        ctx.logger.info({ cookieName: COOKIE_NAME, cookieOptions }, '[LOGIN] Cookie de sessão definido');
 
         // Definir o cookie CSRF com as mesmas flags do cookie de sessão
         const csrfToken = getCsrfToken(ctx.req, ctx.res);
