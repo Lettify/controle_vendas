@@ -14,12 +14,14 @@ export default async function handler(req: any, res: any) {
     const host = req.headers["x-forwarded-host"] || req.headers.host;
     const url = `${protocol}://${host}${req.url}`;
 
+    console.log('[API Debug] Raw Vercel Headers:', JSON.stringify(req.headers));
+
     // Handle preflight requests
     if (req.method === "OPTIONS") {
       res.status(200).setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-csrf-token");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-csrf-token, X-CSRF-Token");
       return res.end();
     }
 
@@ -58,10 +60,18 @@ export default async function handler(req: any, res: any) {
           // Extrair informações da URL para mock do request
           const reqUrl = new URL(opts.req.url);
 
+          // Converter Headers para objeto de forma robusta
+          const headersObj: Record<string, string> = {};
+          opts.req.headers.forEach((value, key) => {
+            headersObj[key] = value;
+          });
+
+          console.log('[API Debug] Context Headers:', JSON.stringify(headersObj));
+
           // Mock de req/res compatível com Express
           const mockReq = {
             cookies,
-            headers: Object.fromEntries(opts.req.headers),
+            headers: headersObj,
             method: opts.req.method,
             url: opts.req.url,
             protocol: reqUrl.protocol.replace(":", ""),
@@ -119,7 +129,7 @@ export default async function handler(req: any, res: any) {
       res.setHeader("Access-Control-Allow-Origin", origin);
     }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-csrf-token");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-csrf-token, X-CSRF-Token");
 
     // Copiar headers da resposta do tRPC
     response.headers.forEach((value, key) => {
