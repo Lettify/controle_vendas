@@ -107,9 +107,11 @@ export default function Login() {
       cancelled = true;
     };
   }, []);
-  
+
   const loginMutation = trpc.auth.loginWithCode.useMutation({
     onSuccess: async () => {
+      // Pequeno delay para garantir que o navegador processou o cookie
+      await new Promise(resolve => setTimeout(resolve, 100));
       // Invalidar a query do auth.me para recarregar o usuário
       await utils.auth.me.invalidate();
       navigate("/");
@@ -129,7 +131,7 @@ export default function Login() {
       deviceId ||
       (typeof window !== "undefined"
         ? window.sessionStorage.getItem(DEVICE_STORAGE_KEY) ||
-          window.localStorage.getItem(DEVICE_STORAGE_KEY)
+        window.localStorage.getItem(DEVICE_STORAGE_KEY)
         : null);
 
     if (!effectiveDeviceId) {
@@ -148,7 +150,7 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
       {/* Background animado com gradiente */}
       <div className="absolute inset-0 bg-gradient-to-br from-emerald-50 via-teal-50 to-cyan-100"></div>
-      
+
       {/* Círculos decorativos de fundo */}
       <div className="absolute top-0 left-0 w-96 h-96 bg-gradient-to-br from-emerald-400/20 to-teal-500/20 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2"></div>
       <div className="absolute bottom-0 right-0 w-96 h-96 bg-gradient-to-tl from-cyan-400/20 to-blue-500/20 rounded-full blur-3xl translate-x-1/2 translate-y-1/2"></div>
@@ -168,7 +170,7 @@ export default function Login() {
                 </svg>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <CardTitle className="text-3xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
                 {APP_TITLE}
@@ -178,7 +180,7 @@ export default function Login() {
               </CardDescription>
             </div>
           </CardHeader>
-          
+
           <CardContent className="px-8 pb-8">
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-3">
