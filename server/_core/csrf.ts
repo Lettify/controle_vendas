@@ -26,6 +26,12 @@ export function getCsrfToken(req: Request, res: Response): string {
 export function validateCsrf(req: Request): boolean {
   const cookie = req.cookies[CSRF_COOKIE];
   const header = req.headers[CSRF_HEADER] || req.headers[CSRF_HEADER.toLowerCase()];
+
+  console.log("[CSRF Debug] Validando token:");
+  console.log("[CSRF Debug] Cookie recebido:", cookie);
+  console.log("[CSRF Debug] Header recebido:", header);
+  console.log("[CSRF Debug] Match:", cookie === header);
+
   if (!cookie || !header) return false;
   return cookie === header;
 }
