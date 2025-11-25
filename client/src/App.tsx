@@ -116,11 +116,16 @@ export default function App() {
           async fetch(url, options) {
             // Adiciona o token CSRF em mutações
             const isMutation = options?.body && JSON.parse(options.body as string)?.method === "mutation";
-            let headers = options?.headers || {};
+
+            // Normaliza headers usando a API Headers para evitar problemas com objetos vs Headers
+            const headers = new Headers(options?.headers || {});
+
             if (isMutation) {
               const token = await getCsrfToken();
-              headers = { ...headers, "x-csrf-token": token };
+              headers.set("x-csrf-token", token);
+              console.log("[CSRF] Token adicionado ao header:", token);
             }
+
             return fetch(url, {
               ...options,
               credentials: 'include',
