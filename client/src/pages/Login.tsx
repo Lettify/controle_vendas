@@ -110,11 +110,20 @@ export default function Login() {
 
   const loginMutation = trpc.auth.loginWithCode.useMutation({
     onSuccess: async () => {
-      // Delay para garantir que o navegador processou o cookie antes de invalidar cache
+      // Delay para garantir que o navegador processou o cookie
       await new Promise(resolve => setTimeout(resolve, 500));
-      // Invalidar a query do auth.me para recarregar o usuário
+
+      // Invalidar a query do auth.me para limpar cache antigo
       await utils.auth.me.invalidate();
-      navigate("/");
+
+      // Buscar dados atualizados explicitamente para garantir que estamos logados
+      const user = await utils.auth.me.fetch();
+
+      if (user) {
+        navigate("/");
+      } else {
+        setError("Falha ao verificar autenticação. Tente novamente.");
+      }
     },
     onError: (err) => {
       setError(err.message || "Erro ao fazer login");
