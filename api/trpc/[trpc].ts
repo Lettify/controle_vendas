@@ -19,7 +19,7 @@ export default async function handler(req: any, res: any) {
       res.status(200).setHeader("Access-Control-Allow-Credentials", "true");
       res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
       res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-csrf-token");
       return res.end();
     }
 
@@ -119,7 +119,7 @@ export default async function handler(req: any, res: any) {
       res.setHeader("Access-Control-Allow-Origin", origin);
     }
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, x-csrf-token");
 
     // Copiar headers da resposta do tRPC
     response.headers.forEach((value, key) => {
