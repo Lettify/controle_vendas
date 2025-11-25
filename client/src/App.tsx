@@ -8,6 +8,7 @@ import { useAuth } from "./hooks/useAuth";
 import Navbar from "./components/Navbar";
 import { PageHeaderProvider } from "./contexts/PageHeaderContext";
 import { getCsrfToken } from "./lib/csrf";
+import { Toaster } from "sonner";
 
 const Login = lazy(() => import("./pages/Login"));
 const Home = lazy(() => import("./pages/Home"));
@@ -145,6 +146,7 @@ export default function App() {
       <QueryClientProvider client={queryClient}>
         <PageHeaderProvider>
           <Router />
+          <Toaster richColors position="top-right" />
         </PageHeaderProvider>
       </QueryClientProvider>
     </trpc.Provider>

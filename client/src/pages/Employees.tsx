@@ -22,7 +22,10 @@ import {
   Power,
   ChevronRight,
   Sparkles,
+  AlertTriangle,
+  Check,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   SensitiveSection,
   SensitiveSectionToggleButton,
@@ -124,6 +127,7 @@ export default function Employees() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const { setTitle, setShowUserInfo } = usePageHeader();
+  const utils = trpc.useUtils();
 
   useEffect(() => {
     setTitle("Equipe");
@@ -137,6 +141,8 @@ export default function Employees() {
   // Removed unused statusFilter and page states
   const [pageSize] = useState(12);
   const [spotlightIndex, setSpotlightIndex] = useState(0);
+  const [employeeToDelete, setEmployeeToDelete] = useState<string | null>(null);
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const handleCloseAddModal = useCallback(() => {
     setIsAddModalOpen(false);
@@ -152,9 +158,20 @@ export default function Employees() {
   });
 
   const createMutation = trpc.employees.create.useMutation({
-    onSuccess: () => {
-      handleCloseAddModal();
-      employeesQuery.refetch();
+    onSuccess: async () => {
+      setIsSuccess(true);
+      toast.success("Colaborador adicionado com sucesso!");
+
+      // Pequeno delay para garantir que o banco processou
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Força o reset do cache da lista
+      await utils.employees.list.reset();
+
+      setTimeout(() => {
+        handleCloseAddModal();
+        setIsSuccess(false);
+      }, 1000);
     },
   });
 
@@ -167,7 +184,10 @@ export default function Employees() {
   });
 
   const deleteMutation = trpc.employees.delete.useMutation({
-    onSuccess: () => employeesQuery.refetch(),
+    onSuccess: () => {
+      employeesQuery.refetch();
+      setEmployeeToDelete(null);
+    },
   });
 
   const handleAddEmployee = (event: FormEvent<HTMLFormElement>) => {
@@ -534,9 +554,7 @@ export default function Employees() {
                             <Power className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => {
-                              if (confirm("Tem certeza?")) deleteMutation.mutate({ id: employee.id })
-                            }}
+                            onClick={() => setEmployeeToDelete(employee.id)}
                             className="p-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all shadow-sm hover:shadow-md"
                             title="Remover"
                           >
@@ -715,10 +733,18 @@ export default function Employees() {
                       <div className="pt-4">
                         <Button
                           type="submit"
-                          disabled={createMutation.isPending}
-                          className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 transition-all"
+                          disabled={createMutation.isPending || isSuccess}
+                          className={`w-full h-12 rounded-xl font-semibold shadow-lg transition-all ${isSuccess
+                            ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/30"
+                            : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-indigo-500/30 hover:shadow-indigo-500/40"
+                            }`}
                         >
-                          {createMutation.isPending ? (
+                          {isSuccess ? (
+                            <span className="flex items-center gap-2">
+                              <Check className="w-5 h-5" />
+                              Cadastrado!
+                            </span>
+                          ) : createMutation.isPending ? (
                             <span className="flex items-center gap-2">
                               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                               Salvando...
@@ -742,6 +768,59 @@ export default function Employees() {
           )
         }
       </AnimatePresence >
+
+      {/* --- Delete Confirmation Modal --- */}
+      <AnimatePresence>
+        {employeeToDelete && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setEmployeeToDelete(null)}
+              className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50"
+            />
+            <motion.div
+              variants={modalVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+            >
+              <div className="bg-white w-full max-w-sm rounded-[2rem] shadow-2xl pointer-events-auto overflow-hidden">
+                <div className="p-6 text-center">
+                  <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <AlertTriangle className="w-8 h-8 text-rose-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">Tem certeza?</h3>
+                  <p className="text-slate-500 text-sm mb-6 leading-relaxed">
+                    Essa ação removerá permanentemente o colaborador e pode afetar o histórico se houver vendas vinculadas.
+                    <br />
+                    <span className="font-semibold text-rose-600 mt-2 block">Recomendamos apenas desativar.</span>
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      variant="outline"
+                      onClick={() => setEmployeeToDelete(null)}
+                      className="h-11 rounded-xl border-slate-200 text-slate-600 hover:text-slate-800 hover:bg-slate-100 hover:border-slate-300 transition-colors"
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={() => employeeToDelete && deleteMutation.mutate({ id: employeeToDelete })}
+                      disabled={deleteMutation.isPending}
+                      className="h-11 rounded-xl bg-rose-600 hover:bg-rose-700 text-white shadow-lg shadow-rose-500/30"
+                    >
+                      {deleteMutation.isPending ? "Removendo..." : "Sim, remover"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div >
   );
 }
