@@ -110,8 +110,8 @@ export default function Login() {
 
   const loginMutation = trpc.auth.loginWithCode.useMutation({
     onSuccess: async () => {
-      // Pequeno delay para garantir que o navegador processou o cookie
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Delay para garantir que o navegador processou o cookie antes de invalidar cache
+      await new Promise(resolve => setTimeout(resolve, 500));
       // Invalidar a query do auth.me para recarregar o usuário
       await utils.auth.me.invalidate();
       navigate("/");
