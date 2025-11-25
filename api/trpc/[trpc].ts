@@ -59,14 +59,11 @@ export default async function handler(req: any, res: any) {
 
           // Extrair informações da URL para mock do request
           const reqUrl = new URL(opts.req.url);
-
           // Converter Headers para objeto de forma robusta
           const headersObj: Record<string, string> = {};
           opts.req.headers.forEach((value, key) => {
             headersObj[key] = value;
           });
-
-          console.log('[API Debug] Context Headers:', JSON.stringify(headersObj));
 
           // Mock de req/res compatível com Express
           const mockReq = {

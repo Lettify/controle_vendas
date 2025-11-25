@@ -115,7 +115,6 @@ export default function App() {
           url: getApiUrl(),
           async fetch(url, options) {
             const method = options?.method || 'GET';
-            console.log(`[Client Fetch] ${method} ${url}`);
 
             // Normaliza headers usando a API Headers
             const headers = new Headers(options?.headers || {});
@@ -125,12 +124,6 @@ export default function App() {
               try {
                 const token = await getCsrfToken();
                 headers.set("x-csrf-token", token);
-                console.log("[Client Fetch] Token adicionado:", token);
-
-                // Debug: verificar se o header foi realmente setado
-                const headerObj: Record<string, string> = {};
-                headers.forEach((v, k) => { headerObj[k] = v; });
-                console.log("[Client Fetch] Headers finais:", JSON.stringify(headerObj));
               } catch (err) {
                 console.error("[Client Fetch] Erro ao obter token:", err);
               }
