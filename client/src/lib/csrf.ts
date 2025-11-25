@@ -16,10 +16,14 @@ export async function getCsrfToken(): Promise<string> {
   // Se não encontrou no cookie, busca do servidor
   console.log("[CSRF] Token não encontrado no cookie, buscando do servidor...");
   try {
-    const apiUrl =
-      import.meta.env.VITE_API_URL
-        ? `${import.meta.env.VITE_API_URL}/trpc/csrf`
-        : `${window.location.origin}/api/trpc/csrf`;
+    let apiUrl;
+    if (import.meta.env.DEV) {
+      apiUrl = "/trpc/csrf";
+    } else if (import.meta.env.VITE_API_URL) {
+      apiUrl = `${import.meta.env.VITE_API_URL}/trpc/csrf`;
+    } else {
+      apiUrl = `${window.location.origin}/api/trpc/csrf`;
+    }
 
     const response = await fetch(apiUrl);
     const data = await response.json();

@@ -1,64 +1,75 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
-import type { EmployeeRecord } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
 import { useLocation } from "wouter";
 import { usePageHeader } from "@/contexts/PageHeaderContext";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  Search,
+  Plus,
+  LayoutGrid,
+  List as ListIcon,
+  UserPlus,
+  Users,
+  Briefcase,
+  Activity,
+  X,
+  Phone,
+  Mail,
+  Trash2,
+  Power,
+  ChevronRight,
+  Sparkles,
+} from "lucide-react";
+import {
+  SensitiveSection,
+  SensitiveSectionToggleButton,
+  SensitiveValue,
+} from "@/components/SensitiveValue";
 
 const COMPANY_ID = "default-company";
 
+// --- Visual Constants & Helpers ---
+
 const VISUAL_PALETTE = [
   {
-    gradient: "from-violet-500 via-indigo-500 to-sky-500",
-    soft: "bg-indigo-50/70",
-    accent: "text-indigo-200",
-    border: "border-indigo-200/70",
-    beam: "from-indigo-400/40 via-transparent to-transparent",
+    gradient: "from-violet-500 via-indigo-500 to-blue-500",
+    shadow: "shadow-indigo-500/20",
+    text: "text-indigo-600",
+    bg: "bg-indigo-50",
+    border: "border-indigo-100"
   },
   {
-    gradient: "from-emerald-400 via-emerald-500 to-teal-500",
-    soft: "bg-emerald-50/70",
-    accent: "text-emerald-200",
-    border: "border-emerald-200/70",
-    beam: "from-emerald-400/35 via-transparent to-transparent",
+    gradient: "from-emerald-400 via-teal-500 to-cyan-500",
+    shadow: "shadow-emerald-500/20",
+    text: "text-emerald-600",
+    bg: "bg-emerald-50",
+    border: "border-emerald-100"
   },
   {
-    gradient: "from-rose-500 via-pink-500 to-orange-500",
-    soft: "bg-rose-50/70",
-    accent: "text-rose-200",
-    border: "border-rose-200/70",
-    beam: "from-rose-400/35 via-transparent to-transparent",
-  },
-  {
-    gradient: "from-blue-500 via-sky-500 to-cyan-500",
-    soft: "bg-sky-50/70",
-    accent: "text-sky-200",
-    border: "border-sky-200/70",
-    beam: "from-sky-400/35 via-transparent to-transparent",
+    gradient: "from-rose-500 via-pink-500 to-fuchsia-500",
+    shadow: "shadow-rose-500/20",
+    text: "text-rose-600",
+    bg: "bg-rose-50",
+    border: "border-rose-100"
   },
   {
     gradient: "from-amber-400 via-orange-500 to-red-500",
-    soft: "bg-amber-50/70",
-    accent: "text-amber-100",
-    border: "border-amber-200/70",
-    beam: "from-amber-400/30 via-transparent to-transparent",
+    shadow: "shadow-orange-500/20",
+    text: "text-orange-600",
+    bg: "bg-orange-50",
+    border: "border-orange-100"
   },
   {
-    gradient: "from-slate-500 via-gray-500 to-zinc-500",
-    soft: "bg-slate-50/70",
-    accent: "text-slate-200",
-    border: "border-slate-200/70",
-    beam: "from-slate-400/35 via-transparent to-transparent",
+    gradient: "from-blue-400 via-sky-500 to-indigo-500",
+    shadow: "shadow-sky-500/20",
+    text: "text-sky-600",
+    bg: "bg-sky-50",
+    border: "border-sky-100"
   },
 ] as const;
-
-const MAP_VISUAL_THRESHOLD = 12;
-
-type EmployeeEntity = EmployeeRecord;
-type EmployeesList = EmployeeEntity[];
 
 function getVisualToken(index: number) {
   return VISUAL_PALETTE[index % VISUAL_PALETTE.length];
@@ -73,29 +84,59 @@ function getInitials(name: string) {
     .slice(0, 2);
 }
 
-function clampPercentage(value: number) {
-  if (!Number.isFinite(value)) return 0;
-  return Math.min(100, Math.max(0, value));
-}
+// --- Animation Variants ---
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.05,
+      delayChildren: 0.1
+    }
+  }
+};
+
+const itemVariants = {
+  hidden: { y: 20, opacity: 0, scale: 0.95 },
+  visible: {
+    y: 0,
+    opacity: 1,
+    scale: 1,
+    transition: { type: "spring", stiffness: 100, damping: 15 } as const
+  }
+};
+
+const modalVariants = {
+  hidden: { opacity: 0, scale: 0.9, y: 20 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { type: "spring", duration: 0.5, bounce: 0.3 } as const
+  },
+  exit: { opacity: 0, scale: 0.9, y: 20, transition: { duration: 0.2 } as const }
+};
+
+// --- Components ---
 
 export default function Employees() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
   const { setTitle, setShowUserInfo } = usePageHeader();
-  
+
   useEffect(() => {
     setTitle("Equipe");
     setShowUserInfo(true);
   }, [setShowUserInfo, setTitle]);
+
   const [newEmployee, setNewEmployee] = useState({ name: "", email: "", phone: "", position: "" });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'mosaic' | 'table'>('mosaic');
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
-  const [page, setPage] = useState(0);
+  // Removed unused statusFilter and page states
   const [pageSize] = useState(12);
   const [spotlightIndex, setSpotlightIndex] = useState(0);
-  const flowSectionRef = useRef<HTMLElement | null>(null);
 
   const handleCloseAddModal = useCallback(() => {
     setIsAddModalOpen(false);
@@ -105,10 +146,11 @@ export default function Employees() {
   const employeesQuery = trpc.employees.list.useQuery({
     companyId: COMPANY_ID,
     limit: pageSize,
-    offset: page * pageSize,
+    offset: 0, // Fixed offset since page state was removed
     searchTerm: searchTerm || undefined,
-    statusFilter: statusFilter === 'all' ? undefined : statusFilter,
+    // Removed statusFilter usage
   });
+
   const createMutation = trpc.employees.create.useMutation({
     onSuccess: () => {
       handleCloseAddModal();
@@ -131,9 +173,7 @@ export default function Employees() {
   const handleAddEmployee = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!newEmployee.name.trim()) return;
-
     const normalizedPosition = newEmployee.position.trim() || "Vendedor";
-
     createMutation.mutate({
       companyId: COMPANY_ID,
       ...newEmployee,
@@ -146,882 +186,562 @@ export default function Employees() {
     return null;
   }
 
-  const employees: EmployeesList = (employeesQuery.data as any)?.employees ?? [];
+  const employees = (employeesQuery.data as any)?.employees ?? [];
   const totalEmployees = (employeesQuery.data as any)?.total ?? 0;
-
-  const activeEmployees = useMemo<EmployeeEntity[]>(
-    () => employees.filter((employee) => employee.isActive),
-    [employees]
-  );
-
-  const inactiveEmployees = useMemo<EmployeeEntity[]>(
-    () => employees.filter((employee) => !employee.isActive),
-    [employees]
-  );
-
-  // NOTE: Server-side pagination and filtering are used; `employees` contains the current page.
+  const activeEmployees = useMemo(() => employees.filter((e: any) => e.isActive), [employees]);
+  // Removed unused inactiveEmployees
 
   const activationRate = totalEmployees > 0 ? Math.round((activeEmployees.length / totalEmployees) * 100) : 0;
-  const inactivityRate = totalEmployees > 0 ? Math.round((inactiveEmployees.length / totalEmployees) * 100) : 0;
 
-  const topPositions = useMemo(() => {
-    const counts = new Map<string, number>();
-    employees.forEach((employee) => {
-      const key = employee.position?.trim() || "Sem cargo definido";
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    });
-
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 3);
-  }, [employees]);
-
-  const spotlightEmployee = activeEmployees.length > 0
-    ? activeEmployees[spotlightIndex % activeEmployees.length]
-    : undefined;
-
-  const spotlightToken = useMemo(() => {
-    if (!spotlightEmployee) return getVisualToken(0);
-    const index = employees.findIndex((employee) => employee.id === spotlightEmployee.id);
-    return getVisualToken(index >= 0 ? index : 0);
-  }, [spotlightEmployee, employees]);
-
+  // Spotlight Logic
   useEffect(() => {
     if (activeEmployees.length === 0) return;
     const interval = window.setInterval(() => {
-      setSpotlightIndex((previous) => (previous + 1) % activeEmployees.length);
-    }, 7000);
-
+      setSpotlightIndex((prev) => (prev + 1) % activeEmployees.length);
+    }, 5000);
     return () => window.clearInterval(interval);
   }, [activeEmployees.length]);
 
-  useEffect(() => {
-    setSpotlightIndex(0);
-  }, [activeEmployees.length]);
-
-  useEffect(() => {
-    if (!isAddModalOpen) return;
-    const { style } = document.body;
-    const previousOverflow = style.overflow;
-    style.overflow = "hidden";
-    return () => {
-      style.overflow = previousOverflow;
-    };
-  }, [isAddModalOpen]);
-
-  useEffect(() => {
-    if (!isAddModalOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        handleCloseAddModal();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isAddModalOpen, handleCloseAddModal]);
-
-  const dnaSegments = useMemo<Array<{ employee: EmployeeEntity; token: ReturnType<typeof getVisualToken> }>>(
-    () => employees.map((employee, index) => ({ employee, token: getVisualToken(index) })),
-    [employees]
-  );
-
-  const isLoading = employeesQuery.isLoading;
-  const hasGlobalEmptyState = !isLoading && totalEmployees === 0;
-  const hasFilteredEmptyState = !isLoading && totalEmployees > 0 && employees.length === 0;
-
-  const resetFilters = () => {
-    setSearchTerm("");
-    setStatusFilter('all');
-    setPage(0);
-  };
-
-  // Reset page when filters change
-  useEffect(() => {
-    setPage(0);
-  }, [searchTerm, statusFilter, pageSize]);
+  const spotlightEmployee = activeEmployees.length > 0 ? activeEmployees[spotlightIndex] : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-10">
-        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-purple-600 to-blue-700 text-white shadow-2xl">
-          <div className="absolute inset-0 opacity-50">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div
-                key={index}
-                className={`absolute rounded-full blur-3xl bg-white/20 ${index % 2 === 0 ? 'w-48 h-48' : 'w-32 h-32'}`}
-                style={{
-                  top: `${index * 18 + 8}%`,
-                  left: index % 2 === 0 ? `${index * 12}%` : 'auto',
-                  right: index % 2 === 0 ? 'auto' : `${index * 14}%`,
+    <div className="min-h-screen bg-slate-50/50 pb-20">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        <SensitiveSection>
+
+          {/* --- Hero Section --- */}
+          <motion.section
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            className="relative overflow-hidden rounded-[2.5rem] bg-slate-900 shadow-2xl"
+          >
+            <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 brightness-100 contrast-150 mix-blend-overlay"></div>
+            <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/90 via-purple-600/90 to-blue-600/90" />
+
+            {/* Animated Background Blobs */}
+            <div className="absolute inset-0 overflow-hidden">
+              <motion.div
+                animate={{
+                  x: [0, 50, 0],
+                  y: [0, 30, 0],
+                  scale: [1, 1.1, 1]
                 }}
+                transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute -top-24 -left-24 w-96 h-96 bg-blue-500/30 rounded-full blur-3xl"
               />
-            ))}
-          </div>
-
-          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between px-6 py-10 sm:px-10 lg:px-14">
-            <div className="max-w-2xl space-y-6">
-              <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-xs font-semibold uppercase tracking-wider text-white/80">
-                <span className="inline-block h-2 w-2 rounded-full bg-lime-300 animate-pulse" />
-                Painel de pessoas • Indicadores em tempo real
-              </span>
-              <h1 className="text-3xl font-black leading-tight tracking-tight sm:text-[2.7rem]">
-                Gestão de pessoas com inteligência acionável
-              </h1>
-              <p className="text-sm sm:text-base text-white/85">
-                Acompanhe indicadores críticos, identifique tendências e tome decisões com uma visão estruturada e atualizada da equipe.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="rounded-2xl bg-white/12 p-5 backdrop-blur">
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70">Taxa de ativação</p>
-                  <p className="mt-3 text-3xl font-extrabold">{activationRate}%</p>
-                  <div className="mt-4 h-2 w-full rounded-full bg-white/15">
-                    <div
-                      className="h-full rounded-full bg-gradient-to-r from-lime-300 via-emerald-300 to-sky-300"
-                      style={{ width: `${clampPercentage(activationRate)}%` }}
-                    />
-                  </div>
-                  <span className="mt-3 block text-[11px] font-semibold text-white/65">
-                    {activeEmployees.length} colaboradores ativos
-                  </span>
-                </div>
-
-                <div className="rounded-2xl bg-white/12 p-5 backdrop-blur">
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70">Engajamento da equipe</p>
-                  <p className="mt-3 text-3xl font-extrabold">{inactiveEmployees.length}</p>
-                  <span className="text-sm font-semibold text-white/75">Inativos no momento</span>
-                  <div className="mt-4 grid grid-cols-2 gap-2 text-[11px] text-white/65">
-                    <span>Ativos • {activationRate}%</span>
-                    <span>Inativos • {inactivityRate}%</span>
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-white/12 p-5 backdrop-blur">
-                  <p className="text-[11px] font-semibold uppercase tracking-widest text-white/70">Função mais frequente</p>
-                  <p className="mt-3 text-xl font-extrabold">
-                    {topPositions.length > 0 ? topPositions[0][0] : 'Defina cargos'}
-                  </p>
-                  <p className="text-sm font-semibold text-white/80">
-                    {topPositions.length > 0 ? `${topPositions[0][1]} colaboradores nessa função` : 'Defina cargos para gerar indicadores'}
-                  </p>
-                  <div className="mt-4 flex items-center gap-2 text-[11px] text-white/65">
-                    <span>Outras funções:</span>
-                    <div className="inline-flex items-center gap-1">
-                      {topPositions.slice(1).map(([role]) => (
-                        <span key={role} className="rounded-full bg-white/15 px-2 py-0.5 font-semibold">
-                          {role}
-                        </span>
-                      ))}
-                      {topPositions.length <= 1 && <span className="italic text-white/50">aguardando novos registros</span>}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <motion.div
+                animate={{
+                  x: [0, -30, 0],
+                  y: [0, 50, 0],
+                  scale: [1, 1.2, 1]
+                }}
+                transition={{ duration: 12, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+                className="absolute top-1/2 right-0 w-80 h-80 bg-purple-500/30 rounded-full blur-3xl"
+              />
             </div>
 
-            <div className="w-full max-w-sm rounded-3xl border border-white/20 bg-white/12 p-6 shadow-2xl backdrop-blur">
-              <p className="text-xs font-semibold uppercase tracking-widest text-white/70">Destaque automático</p>
-              <h2 className="mt-2 text-lg font-bold text-white">
-                {spotlightEmployee ? spotlightEmployee.name : 'Cadastre colaboradores ativos para iniciar o destaque'}
-              </h2>
-              <p className="text-sm text-white/80">
-                {spotlightEmployee
-                  ? spotlightEmployee.position || 'Cargo não informado'
-                  : 'A adição de novos registros libera esta área automaticamente.'}
-              </p>
-
-              <div className="mt-6 flex items-center gap-4">
-                <div className={`relative h-16 w-16 shrink-0 rounded-2xl bg-gradient-to-br ${spotlightToken.gradient} shadow-xl`}>
-                  <span className="absolute inset-0 flex items-center justify-center text-xl font-extrabold text-white">
-                    {spotlightEmployee ? getInitials(spotlightEmployee.name) : '??'}
-                  </span>
-                  <div className="absolute -bottom-2 -right-2 h-7 w-7 rounded-full bg-white/95 text-indigo-600 shadow-lg">
-                    <div className="flex h-full w-full items-center justify-center text-[11px] font-black">
-                      {activeEmployees.length || 0}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-sm text-white/75">
-                  <p className="flex items-center gap-2">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-lime-300 animate-pulse" />
-                    {spotlightEmployee ? 'Em destaque' : 'Aguardando próximo destaque'}
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-white/60" />
-                    {totalEmployees} profissionais conectados
-                  </p>
-                  <p className="flex items-center gap-2">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-white/40" />
-                    Rotação automática a cada 7 segundos
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-6 flex items-center justify-between gap-2">
-                <Button
-                  variant="ghost"
-                  className="text-white/85 hover:bg-white/10"
-                  onClick={() => {
-                    flowSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  }}
+            <div className="relative z-10 p-8 md:p-12 lg:p-16 flex flex-col lg:flex-row gap-12 items-center justify-between">
+              <div className="max-w-2xl space-y-6">
+                <motion.div
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/90 text-sm font-medium"
                 >
-                  Ver painel de talentos
-                </Button>
-                {spotlightEmployee && (
-                  <Button
-                    variant="outline"
-                    className="border-white/40 bg-white/10 text-white hover:bg-white/20"
-                    onClick={() => navigate(`/employees/${spotlightEmployee.id}`)}
-                  >
-                    Abrir perfil
-                  </Button>
-                )}
+                  <Sparkles className="w-4 h-4 text-yellow-300" />
+                  <span>Gestão Inteligente de Pessoas</span>
+                </motion.div>
+
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1]">
+                  Sua equipe, <br />
+                  <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-200 to-indigo-200">
+                    potencializada.
+                  </span>
+                </h1>
+
+                <p className="text-lg text-blue-100/80 max-w-lg leading-relaxed">
+                  Gerencie talentos, acompanhe métricas e impulsione resultados com uma visão 360º do seu time.
+                </p>
+
+                <div className="flex flex-wrap gap-4 pt-4">
+                  <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
+                    <div className="p-2 rounded-lg bg-emerald-500/20 text-emerald-300">
+                      <Activity className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/60 uppercase tracking-wider font-semibold">Ativação</p>
+                      <p className="text-xl font-bold text-white">{activationRate}%</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 px-5 py-3 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10">
+                    <div className="p-2 rounded-lg bg-blue-500/20 text-blue-300">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-white/60 uppercase tracking-wider font-semibold">Total</p>
+                      <p className="text-xl font-bold text-white">{totalEmployees}</p>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* Spotlight Card */}
+              <AnimatePresence mode="wait">
+                {spotlightEmployee && (
+                  <motion.div
+                    key={spotlightEmployee.id}
+                    initial={{ opacity: 0, scale: 0.9, rotate: 2 }}
+                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
+                    exit={{ opacity: 0, scale: 0.9, rotate: -2 }}
+                    transition={{ type: "spring", duration: 0.6 }}
+                  >
+                    <div
+                      className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-6 shadow-2xl relative group cursor-pointer hover:bg-white/15 transition-colors"
+                      onClick={() => navigate(`/employees/${spotlightEmployee.id}`)}
+                    >
+                      <div className="flex justify-end items-center gap-3 mb-4">
+                        <SensitiveSectionToggleButton className="bg-white/20 border-white/20 text-white hover:bg-white/30 hover:border-white/40 transition-all" />
+                        <div className="px-3 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase tracking-wide flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                          Destaque
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-5 mb-6">
+                        <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${getVisualToken(0).gradient} shadow-lg flex items-center justify-center text-3xl font-bold text-white shrink-0`}>
+                          {getInitials(spotlightEmployee.name)}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-xl font-bold text-white leading-tight mb-1 truncate pr-2">{spotlightEmployee.name}</h3>
+                          <p className="text-white/70 text-sm font-medium truncate">{spotlightEmployee.position || 'Colaborador'}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="bg-white/10 p-4 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden flex flex-col justify-center">
+                          <p className="text-[10px] sm:text-xs text-white/60 uppercase font-bold tracking-wider mb-1 truncate">Total (Mês)</p>
+                          {(() => {
+                            const val = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(spotlightEmployee.totalMonthSales ?? 0);
+                            // Dynamic font size based on character count
+                            // <= 10 chars (e.g. R$ 500,00): text-2xl
+                            // 11-13 chars (e.g. R$ 50.000,00): text-xl
+                            // > 13 chars (e.g. R$ 100.000,00): text-lg
+                            const sizeClass = val.length > 13 ? "text-lg" : val.length > 10 ? "text-xl" : "text-2xl";
+                            return (
+                              <SensitiveValue className={`${sizeClass} font-bold text-white block truncate w-full tracking-tight`}>
+                                {val}
+                              </SensitiveValue>
+                            );
+                          })()}
+                        </div>
+                        <div className="bg-white/10 p-4 rounded-2xl border border-white/10 backdrop-blur-sm overflow-hidden flex flex-col justify-center">
+                          <p className="text-[10px] sm:text-xs text-white/60 uppercase font-bold tracking-wider mb-1 truncate">Última Venda</p>
+                          {spotlightEmployee.lastSale ? (() => {
+                            const val = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(spotlightEmployee.lastSale.amount));
+                            const sizeClass = val.length > 13 ? "text-lg" : val.length > 10 ? "text-xl" : "text-2xl";
+                            return (
+                              <>
+                                <SensitiveValue className={`${sizeClass} font-bold text-white block truncate w-full tracking-tight`}>
+                                  {val}
+                                </SensitiveValue>
+                                <p className="text-[10px] text-white/50 mt-0.5 font-medium truncate">
+                                  {new Date(spotlightEmployee.lastSale.date).toLocaleDateString('pt-BR')}
+                                </p>
+                              </>
+                            );
+                          })() : (
+                            <p className="text-sm font-medium text-white/40 mt-1">—</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
-          </div>
-        </section>
+          </motion.section>
 
-        <section className="rounded-3xl border border-indigo-100 bg-white/90 p-6 backdrop-blur shadow-xl">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="space-y-2">
-              <h2 className="text-2xl font-bold text-indigo-900">Painel de gestão da equipe</h2>
-              <p className="text-sm text-indigo-600">
-                Controle filtros, cadastre novos colaboradores e alterne entre visualizações conforme a necessidade.
-              </p>
+          {/* --- Controls Section --- */}
+          <section className="sticky top-4 z-30 bg-white/80 backdrop-blur-xl border border-white/40 shadow-lg shadow-slate-200/50 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between">
+            <div className="relative w-full md:w-96 group">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+              <Input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar por nome, cargo..."
+                className="pl-10 h-11 bg-slate-50 border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/20 rounded-xl transition-all"
+              />
             </div>
 
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                onClick={() => setIsAddModalOpen(true)}
-                className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg hover:from-indigo-700 hover:to-purple-700"
-              >
-                <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-                Adicionar colaborador
-              </Button>
-
-              <div className="flex items-center gap-1 rounded-xl border border-indigo-100 bg-indigo-50/80 p-1">
+            <div className="flex items-center gap-3 w-full md:w-auto overflow-x-auto pb-1 md:pb-0">
+              <div className="flex bg-slate-100 p-1 rounded-xl shrink-0">
                 <button
                   onClick={() => setViewMode('mosaic')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    viewMode === 'mosaic'
-                      ? 'bg-white text-indigo-600 shadow'
-                      : 'text-indigo-500 hover:bg-white/60 hover:text-indigo-700'
-                  }`}
+                  className={`p-2 rounded-lg transition-all ${viewMode === 'mosaic' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  Visão cartões
+                  <LayoutGrid className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => setViewMode('table')}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
-                    viewMode === 'table'
-                      ? 'bg-white text-indigo-600 shadow'
-                      : 'text-indigo-500 hover:bg-white/60 hover:text-indigo-700'
-                  }`}
+                  className={`p-2 rounded-lg transition-all ${viewMode === 'table' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
-                  Visão tabela
+                  <ListIcon className="w-5 h-5" />
                 </button>
               </div>
-            </div>
-          </div>
 
-          <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,1.5fr)_minmax(0,1.5fr)]">
-            <div className="lg:col-span-3">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                Buscar por nome, cargo ou e-mail
-              </label>
-              <div className="relative">
-                <Input
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  placeholder="Ex: Ana, Inside Sales, ana@empresa.com"
-                  className="h-12 rounded-xl border-indigo-100 bg-white pr-12 text-indigo-900 shadow-sm focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-                />
-                {searchTerm && (
-                  <button
-                    type="button"
-                    onClick={() => setSearchTerm("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-indigo-300 hover:text-indigo-500"
-                  >
-                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            </div>
+              <div className="h-8 w-px bg-slate-200 mx-1 shrink-0" />
 
-            <div className="flex h-full flex-col gap-2 rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4">
-              <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Status</span>
-              <div className="grid grid-cols-3 gap-2">
-                {(['all', 'active', 'inactive'] as const).map((option) => (
-                  <button
-                    key={option}
-                    onClick={() => setStatusFilter(option)}
-                    className={`w-full min-w-0 rounded-xl px-3 py-2 text-xs font-semibold uppercase text-center transition ${
-                      statusFilter === option
-                        ? 'bg-white text-indigo-600 shadow'
-                        : 'text-indigo-400 hover:bg-white/60 hover:text-indigo-600'
-                    }`}
-                  >
-                    {option === 'all' ? 'Todos' : option === 'active' ? 'Ativos' : 'Inativos'}
-                  </button>
-                ))}
-              </div>
-                <span className="text-[11px] text-indigo-500">
-                {employees.length} resultado{employees.length === 1 ? '' : 's'} visíveis agora.
-              </span>
-            </div>
+              <SensitiveSectionToggleButton
+                showLabel={false}
+                className="h-11 w-11 justify-center rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm shrink-0"
+              />
 
-            <div className="h-full rounded-2xl border border-indigo-100 bg-white p-4 shadow-sm">
-              <span className="text-xs font-semibold uppercase tracking-wide text-indigo-600">Resumo rápido</span>
-              <div className="mt-3 space-y-2 text-sm text-indigo-700">
-                <p className="flex items-center justify-between">
-                  <span>Base total</span>
-                  <strong>{totalEmployees}</strong>
-                </p>
-                <p className="flex items-center justify-between">
-                  <span>Taxa ativa</span>
-                  <strong>{activationRate}%</strong>
-                </p>
-                <p className="flex items-center justify-between">
-                  <span>Funções mapeadas</span>
-                  <strong>{topPositions.length}</strong>
-                </p>
-              </div>
-            </div>
-          </div>
-        </section>
-        {totalEmployees > 0 && employees.length > 0 && (
-          <section ref={flowSectionRef} className="space-y-6">
-            <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-indigo-900">Painel dinâmico de talentos</h2>
-                <p className="text-sm text-indigo-600">Arraste para navegar pelos colaboradores e acessar informações essenciais rapidamente.</p>
-              </div>
-                <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-indigo-500">
-                <span>{employees.length} perfis na visualização</span>
-                <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span>{new Date().toLocaleDateString('pt-BR')}</span>
-                <span className="rounded-full border border-indigo-100 bg-indigo-50/70 px-3 py-1 text-[11px] font-semibold text-indigo-600">
-                  {totalEmployees} colaboradores cadastrados
-                </span>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto rounded-3xl border border-indigo-100 bg-white/80 backdrop-blur shadow-xl">
-              <div className="flex min-w-max items-stretch gap-5 px-6 py-6">
-                {employees.map((employee, index) => {
-                  const token = getVisualToken(index);
-                  return (
-                    <div
-                      key={employee.id}
-                      className="group relative flex w-[240px] flex-col overflow-hidden rounded-3xl border border-indigo-100/60 bg-white/80 shadow-lg transition-transform hover:-translate-y-1 hover:shadow-2xl"
-                    >
-                      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${token.gradient} opacity-20`} />
-                      <div className="relative flex-1 space-y-4 p-5">
-                        <div className={`h-14 w-14 rounded-2xl bg-gradient-to-br ${token.gradient} shadow-xl`}>
-                          <span className="flex h-full w-full items-center justify-center text-lg font-black text-white">
-                            {getInitials(employee.name)}
-                          </span>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="text-base font-semibold text-slate-900 line-clamp-2">
-                            {employee.name}
-                          </p>
-                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
-                            {employee.position || 'Cargo não informado'}
-                          </p>
-                          <div className="rounded-xl bg-slate-100/60 p-3 text-xs text-slate-600">
-                            <p className="truncate">{employee.email || 'E-mail não informado'}</p>
-                            <p className="mt-1 font-semibold text-slate-500">
-                              {employee.phone || 'Telefone pendente'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between border-t border-indigo-100/70 bg-white/70 p-4 text-xs font-semibold text-indigo-600">
-                        <span className="inline-flex items-center gap-2">
-                          <span className={`inline-flex h-2 w-2 rounded-full ${employee.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-300'}`} />
-                          {employee.isActive ? 'Ativo' : 'Inativo'}
-                        </span>
-                        <button
-                          onClick={() => navigate(`/employees/${employee.id}`)}
-                          className="inline-flex items-center gap-1 text-indigo-500 hover:text-indigo-700"
-                        >
-                          Ver
-                          <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {totalEmployees >= MAP_VISUAL_THRESHOLD && (
-              <div className="mt-10 space-y-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-indigo-900">Mapa visual da equipe</h3>
-                    <p className="text-sm text-indigo-600">Visualize padrões de equipe e identifique rapidamente cada colaborador.</p>
-                  </div>
-                  <span className="rounded-full border border-indigo-100 bg-indigo-50/70 px-4 py-1 text-xs font-semibold uppercase tracking-wide text-indigo-600">
-                    {totalEmployees} colaboradores mapeados
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3 sm:grid-cols-6 lg:grid-cols-8">
-                  {dnaSegments.slice(0, 24).map(({ employee, token }, index) => (
-                    <div
-                      key={employee.id}
-                      className={`relative overflow-hidden rounded-2xl border ${token.border} bg-gradient-to-br ${token.gradient} p-4 text-white shadow-lg transition-transform hover:-translate-y-1`}
-                    >
-                      <span className="text-xs font-semibold uppercase tracking-wide text-white/80">
-                        {getInitials(employee.name)}
-                      </span>
-                      <p className="mt-2 text-[11px] text-white/70 line-clamp-2">{employee.name}</p>
-                      <span className="absolute bottom-2 right-3 text-[10px] font-semibold text-white/60">#{index + 1}</span>
-                    </div>
-                  ))}
-                </div>
-
-                {dnaSegments.length > 24 && (
-                  <p className="mt-2 text-xs text-indigo-500">
-                    +{dnaSegments.length - 24} colaboradores aguardando exibição.
-                  </p>
-                )}
-              </div>
-            )}
-          </section>
-        )}
-
-        {isLoading && (
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {Array.from({ length: 6 }).map((_, index) => (
-              <div key={index} className="animate-pulse rounded-3xl border border-indigo-100 bg-white/80 p-6">
-                <div className="mb-4 h-12 w-12 rounded-2xl bg-indigo-100" />
-                <div className="mb-2 h-4 rounded bg-indigo-100/80" />
-                <div className="mb-6 h-3 rounded bg-indigo-100/60" />
-                <div className="h-10 rounded-xl bg-indigo-50/70" />
-              </div>
-            ))}
-          </div>
-        )}
-
-        {hasGlobalEmptyState && (
-          <Card className="border-2 border-dashed border-indigo-200 bg-white/95 text-center shadow-xl">
-            <CardContent className="py-16">
-              <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full bg-indigo-50/80">
-                <svg className="h-10 w-10 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <h3 className="mt-6 text-2xl font-bold text-indigo-900">Cadastre os primeiros colaboradores</h3>
-              <p className="mt-3 text-sm text-indigo-600">
-                Inclua o primeiro registro para liberar os módulos de visualização, destaque automático e mapa da equipe.
-              </p>
               <Button
                 onClick={() => setIsAddModalOpen(true)}
-                className="mt-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 text-white shadow-lg hover:from-indigo-700 hover:via-purple-700 hover:to-blue-700"
+                className="h-11 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 transition-all shrink-0"
               >
-                <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Cadastrar colaborador
+                <Plus className="w-5 h-5 mr-2" />
+                Novo Colaborador
               </Button>
-            </CardContent>
-          </Card>
-        )}
+            </div>
+          </section>
 
-        {hasFilteredEmptyState && (
-          <Card className="border border-rose-100 bg-white/95 text-center shadow-xl">
-            <CardContent className="py-14">
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-rose-50/80">
-                <svg className="h-9 w-9 text-rose-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <h3 className="mt-5 text-xl font-bold text-rose-600">Nenhum resultado com esses filtros</h3>
-              <p className="mt-2 text-sm text-rose-500">
-                Ajuste os filtros ou reinicie a busca para visualizar novamente toda a equipe.
-              </p>
-              <Button
-                onClick={resetFilters}
-                className="mt-5 bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg hover:from-rose-600 hover:to-rose-700"
+          {/* --- Content Section --- */}
+          <AnimatePresence mode="wait">
+            {employeesQuery.isLoading ? (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
               >
-                Limpar filtros
-              </Button>
-            </CardContent>
-          </Card>
-        )}
-
-        {!isLoading && !hasGlobalEmptyState && !hasFilteredEmptyState && (
-          <section>
-            {viewMode === 'mosaic' ? (
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
-                {employees.map((employee, index) => {
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="h-64 bg-white rounded-3xl p-6 border border-slate-100 shadow-sm animate-pulse">
+                    <div className="flex gap-4 mb-6">
+                      <div className="w-16 h-16 bg-slate-100 rounded-2xl" />
+                      <div className="flex-1 space-y-3 pt-2">
+                        <div className="h-4 bg-slate-100 rounded w-3/4" />
+                        <div className="h-3 bg-slate-100 rounded w-1/2" />
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="h-10 bg-slate-50 rounded-xl" />
+                      <div className="h-10 bg-slate-50 rounded-xl" />
+                    </div>
+                  </div>
+                ))}
+              </motion.div>
+            ) : employees.length === 0 ? (
+              <motion.div
+                key="empty"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex flex-col items-center justify-center py-20 text-center"
+              >
+                <div className="w-24 h-24 bg-indigo-50 rounded-full flex items-center justify-center mb-6">
+                  <Users className="w-10 h-10 text-indigo-300" />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-800 mb-2">Nenhum colaborador encontrado</h3>
+                <p className="text-slate-500 max-w-md mx-auto mb-8">
+                  Não encontramos ninguém com os filtros atuais. Tente buscar por outro termo ou adicione um novo membro.
+                </p>
+                <Button onClick={() => setIsAddModalOpen(true)} variant="outline" className="border-indigo-200 text-indigo-600 hover:bg-indigo-50">
+                  Adicionar membro
+                </Button>
+              </motion.div>
+            ) : viewMode === 'mosaic' ? (
+              <motion.div
+                key="mosaic"
+                variants={containerVariants}
+                initial="hidden"
+                animate="visible"
+                className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6"
+              >
+                {employees.map((employee: any, index: number) => {
                   const token = getVisualToken(index);
-                  const isActive = employee.isActive;
-
                   return (
-                    <Card
+                    <motion.div
                       key={employee.id}
-                      className={`relative overflow-hidden rounded-3xl border ${isActive ? 'border-indigo-100' : 'border-slate-200/80'} bg-white/90 backdrop-blur shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${
-                        isActive ? '' : 'opacity-70 hover:opacity-100'
-                      }`}
+                      variants={itemVariants}
+                      layoutId={employee.id}
+                      className="group relative bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm hover:shadow-xl hover:shadow-indigo-500/10 transition-all duration-300 hover:-translate-y-1 overflow-hidden"
                     >
-                      <div className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${token.gradient} opacity-10`} />
-                      <CardContent className="relative space-y-5 p-6">
-                        <div className="flex items-start justify-between gap-4">
-                          <div className={`h-16 w-16 rounded-2xl bg-gradient-to-br ${token.gradient} shadow-xl`}>
-                            <span className="flex h-full w-full items-center justify-center text-xl font-black text-white">
-                              {getInitials(employee.name)}
-                            </span>
+                      <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${token.gradient} opacity-[0.03] rounded-bl-[4rem] transition-opacity group-hover:opacity-[0.08]`} />
+
+                      <div className="flex items-start justify-between mb-6 relative">
+                        <div
+                          className={`w-16 h-16 rounded-2xl bg-gradient-to-br ${token.gradient} shadow-lg flex items-center justify-center text-2xl font-bold text-white transform group-hover:scale-110 transition-transform duration-300`}
+                        >
+                          {getInitials(employee.name)}
+                        </div>
+                        <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${employee.isActive ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                          {employee.isActive ? 'Ativo' : 'Inativo'}
+                        </div>
+                      </div>
+
+                      <div className="mb-6 relative">
+                        <h3 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">{employee.name}</h3>
+                        <p className="text-slate-500 text-sm font-medium flex items-center gap-1.5">
+                          <Briefcase className="w-3.5 h-3.5" />
+                          {employee.position || 'Sem cargo'}
+                        </p>
+                      </div>
+
+                      <div className="space-y-3 relative">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="p-3 rounded-xl bg-slate-50 group-hover:bg-indigo-50/50 transition-colors">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Total (Mês)</p>
+                            <SensitiveValue className="text-sm font-bold text-slate-900 text-ellipsis overflow-hidden">
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(employee.totalMonthSales ?? 0)}
+                            </SensitiveValue>
                           </div>
-                          <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-wide ${
-                            isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
-                          }`}>
-                            <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
-                            {isActive ? 'Ativo' : 'Em pausa'}
-                          </span>
+                          <div className="p-3 rounded-xl bg-slate-50 group-hover:bg-indigo-50/50 transition-colors">
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide mb-1">Última Venda</p>
+                            {employee.lastSale ? (
+                              <div>
+                                <SensitiveValue className="text-sm font-bold text-slate-900 text-ellipsis overflow-hidden">
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(employee.lastSale.amount))}
+                                </SensitiveValue>
+                                <p className="text-[10px] text-slate-500 mt-0.5">
+                                  {new Date(employee.lastSale.date).toLocaleDateString('pt-BR')}
+                                </p>
+                              </div>
+                            ) : (
+                              <p className="text-xs text-slate-400 font-medium mt-1">—</p>
+                            )}
+                          </div>
                         </div>
+                      </div>
 
-                        <div className="space-y-2">
-                          <h3 className="text-xl font-semibold text-slate-900">{employee.name}</h3>
-                          <p className="text-sm font-medium uppercase tracking-wide text-slate-500">
-                            {employee.position || 'Função em definição'}
-                          </p>
-                        </div>
-
-                        <div className="grid gap-3 rounded-2xl border border-indigo-50 bg-indigo-50/60 p-4 text-sm text-slate-600">
-                          <p className="flex items-center gap-2">
-                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-white/80 text-indigo-500">
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                              </svg>
-                            </span>
-                            {employee.email || 'E-mail não informado'}
-                          </p>
-                          <p className="flex items-center gap-2">
-                            <span className="inline-flex h-7 w-7 items-center justify-center rounded-xl bg-white/80 text-indigo-500">
-                              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                              </svg>
-                            </span>
-                            {employee.phone || 'Telefone não informado'}
-                          </p>
-                        </div>
-
-                        <div className="flex flex-wrap items-center gap-2 pt-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => navigate(`/employees/${employee.id}`)}
-                            className="flex-1 rounded-xl border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
+                      <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-3">
+                        <Button
+                          onClick={() => navigate(`/employees/${employee.id}`)}
+                          className="flex-1 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:text-indigo-700 h-10 rounded-xl font-semibold transition-all shadow-sm hover:shadow-md"
+                        >
+                          Ver Perfil
+                        </Button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => (employee.isActive ? deactivateMutation : activateMutation).mutate({ id: employee.id })}
+                            className={`p-2.5 rounded-xl transition-all shadow-sm hover:shadow-md ${employee.isActive
+                              ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                              }`}
+                            title={employee.isActive ? "Desativar" : "Ativar"}
                           >
-                            Ver trajetória
-                          </Button>
-                          {isActive ? (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => deactivateMutation.mutate({ id: employee.id })}
-                              disabled={deactivateMutation.isPending}
-                              className="rounded-xl border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
-                            >
-                              Pausar
-                            </Button>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => activateMutation.mutate({ id: employee.id })}
-                              disabled={activateMutation.isPending}
-                              className="rounded-xl border-emerald-200 text-emerald-600 hover:bg-emerald-50 hover:text-emerald-700"
-                            >
-                              Reativar
-                            </Button>
-                          )}
-                          <Button
-                            variant="outline"
-                            size="sm"
+                            <Power className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => {
-                              if (confirm(`Remover ${employee.name}? Essa ação é permanente.`)) {
-                                deleteMutation.mutate({ id: employee.id });
-                              }
+                              if (confirm("Tem certeza?")) deleteMutation.mutate({ id: employee.id })
                             }}
-                            disabled={deleteMutation.isPending}
-                            className="rounded-xl border-rose-200 text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                            className="p-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 transition-all shadow-sm hover:shadow-md"
+                            title="Remover"
                           >
-                            Remover
-                          </Button>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                    </motion.div>
                   );
                 })}
-              </div>
+              </motion.div>
             ) : (
-              <Card className="overflow-hidden rounded-3xl border border-slate-200/70 bg-white/95 shadow-xl">
-                <CardContent className="p-0">
-                  <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-slate-200">
-                      <thead className="bg-slate-50/80">
-                        <tr className="text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                          <th className="px-6 py-4">Colaborador</th>
-                          <th className="px-6 py-4">Função</th>
-                          <th className="px-6 py-4">Contato</th>
-                          <th className="px-6 py-4">Status</th>
-                          <th className="px-6 py-4 text-right">Comandos</th>
+              <motion.div
+                key="table"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-[2rem] border border-slate-200 shadow-sm overflow-hidden"
+              >
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50/80 border-b border-slate-200">
+                      <tr>
+                        <th className="px-6 py-4 font-semibold text-slate-500 uppercase tracking-wider text-xs">Colaborador</th>
+                        <th className="px-6 py-4 font-semibold text-slate-500 uppercase tracking-wider text-xs">Cargo</th>
+                        <th className="px-6 py-4 font-semibold text-slate-500 uppercase tracking-wider text-xs">Vendas (Mês)</th>
+                        <th className="px-6 py-4 font-semibold text-slate-500 uppercase tracking-wider text-xs">Última Venda</th>
+                        <th className="px-6 py-4 font-semibold text-slate-500 uppercase tracking-wider text-xs">Status</th>
+                        <th className="px-6 py-4 font-semibold text-slate-500 uppercase tracking-wider text-xs text-right">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {employees.map((employee: any) => (
+                        <tr key={employee.id} className="group hover:bg-indigo-50/30 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center font-bold text-xs">
+                                {getInitials(employee.name)}
+                              </div>
+                              <span className="font-medium text-slate-900">{employee.name}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-slate-600">{employee.position || '—'}</td>
+                          <td className="px-6 py-4 text-slate-900 font-bold">
+                            <SensitiveValue>
+                              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(employee.totalMonthSales ?? 0)}
+                            </SensitiveValue>
+                          </td>
+                          <td className="px-6 py-4 text-slate-600">
+                            {employee.lastSale ? (
+                              <div className="flex flex-col text-xs">
+                                <SensitiveValue className="font-bold text-slate-900">
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(employee.lastSale.amount))}
+                                </SensitiveValue>
+                                <span className="text-slate-400">{new Date(employee.lastSale.date).toLocaleDateString('pt-BR')}</span>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${employee.isActive ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-800'}`}>
+                              {employee.isActive ? 'Ativo' : 'Inativo'}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => navigate(`/employees/${employee.id}`)}
+                              className="text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50"
+                            >
+                              <ChevronRight className="w-4 h-4" />
+                            </Button>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 bg-white text-sm">
-                        {employees.map((employee, index) => {
-                          const token = getVisualToken(index);
-                          return (
-                            <tr key={employee.id} className="hover:bg-slate-50/70">
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-3">
-                                  <div className={`h-10 w-10 rounded-xl bg-gradient-to-br ${token.gradient} text-white shadow`}> 
-                                    <span className="flex h-full w-full items-center justify-center text-sm font-bold">
-                                      {getInitials(employee.name)}
-                                    </span>
-                                  </div>
-                                  <div>
-                                    <p className="font-semibold text-slate-900">{employee.name}</p>
-                                    <p className="text-xs text-slate-500">ID • {employee.id.slice(0, 8)}</p>
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                {employee.position ? (
-                                  <span className="inline-flex rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-600">
-                                    {employee.position}
-                                  </span>
-                                ) : (
-                                  <span className="text-xs text-slate-400 italic">Defina uma função</span>
-                                )}
-                              </td>
-                              <td className="px-6 py-4">
-                                <div className="space-y-1 text-xs text-slate-600">
-                                  <p>{employee.email || 'E-mail pendente'}</p>
-                                  <p>{employee.phone || 'Telefone pendente'}</p>
-                                </div>
-                              </td>
-                              <td className="px-6 py-4">
-                                <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
-                                  employee.isActive ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500'
-                                }`}>
-                                  <span className={`h-2 w-2 rounded-full ${employee.isActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
-                                  {employee.isActive ? 'Ativo' : 'Inativo'}
-                                </span>
-                              </td>
-                              <td className="px-6 py-4 text-right">
-                                <div className="inline-flex items-center gap-2">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => navigate(`/employees/${employee.id}`)}
-                                    className="text-indigo-500 hover:bg-indigo-50 hover:text-indigo-700"
-                                  >
-                                    Ver
-                                  </Button>
-                                  {employee.isActive ? (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => deactivateMutation.mutate({ id: employee.id })}
-                                      disabled={deactivateMutation.isPending}
-                                      className="text-orange-500 hover:bg-orange-50 hover:text-orange-700"
-                                    >
-                                      Pausar
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => activateMutation.mutate({ id: employee.id })}
-                                      disabled={activateMutation.isPending}
-                                      className="text-emerald-500 hover:bg-emerald-50 hover:text-emerald-700"
-                                    >
-                                      Ativar
-                                    </Button>
-                                  )}
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => {
-                                      if (confirm(`Remover ${employee.name}? Essa ação não pode ser desfeita.`)) {
-                                        deleteMutation.mutate({ id: employee.id });
-                                      }
-                                    }}
-                                    disabled={deleteMutation.isPending}
-                                    className="text-rose-500 hover:bg-rose-50 hover:text-rose-600"
-                                  >
-                                    Remover
-                                  </Button>
-                                </div>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-          </section>
-        )}
-
-        {isAddModalOpen && (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm px-4 py-6"
-            onClick={handleCloseAddModal}
-          >
-            <div
-              role="dialog"
-              aria-modal="true"
-              className="relative w-full max-w-2xl rounded-3xl bg-white shadow-2xl ring-1 ring-indigo-100/70"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-start justify-between border-b border-indigo-100 px-6 py-5">
-                <div className="space-y-1">
-                  <h2 className="text-xl font-bold text-indigo-900">Cadastrar colaborador</h2>
-                  <p className="text-sm text-slate-500">
-                    Preencha as informações do colaborador para registrar na base da equipe.
-                  </p>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <button
-                  type="button"
-                  onClick={handleCloseAddModal}
-                  className="rounded-xl border border-slate-200/80 p-2 text-slate-400 transition hover:border-slate-300 hover:text-slate-500"
-                  aria-label="Fechar modal"
-                >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <div className="px-6 pb-6 pt-5">
-                <form onSubmit={handleAddEmployee} className="space-y-6">
-                  <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-indigo-900">Nome completo *</label>
-                      <Input
-                        placeholder="Ex: Maria Santos"
-                        value={newEmployee.name}
-                        onChange={(event) => setNewEmployee({ ...newEmployee, name: event.target.value })}
-                        className="h-11 rounded-xl border-indigo-100 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-                        required
-                        autoFocus
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-indigo-900">Cargo / Squad</label>
-                      <Input
-                        placeholder="Ex: Growth Specialist"
-                        value={newEmployee.position}
-                        onChange={(event) => setNewEmployee({ ...newEmployee, position: event.target.value })}
-                        className="h-11 rounded-xl border-indigo-100 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-indigo-900">E-mail profissional</label>
-                      <Input
-                        type="email"
-                        placeholder="nome@empresa.com"
-                        value={newEmployee.email}
-                        onChange={(event) => setNewEmployee({ ...newEmployee, email: event.target.value })}
-                        className="h-11 rounded-xl border-indigo-100 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-sm font-semibold text-indigo-900">Contato direto</label>
-                      <Input
-                        placeholder="(11) 99999-9999"
-                        value={newEmployee.phone}
-                        onChange={(event) => setNewEmployee({ ...newEmployee, phone: event.target.value })}
-                        className="h-11 rounded-xl border-indigo-100 focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleCloseAddModal}
-                      className="rounded-xl border-indigo-100 text-indigo-700 hover:bg-indigo-50"
-                    >
-                      Cancelar
-                    </Button>
-                    <Button
-                      type="submit"
-                      disabled={createMutation.isPending}
-                      className="bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 text-white shadow-lg hover:from-indigo-700 hover:via-purple-700 hover:to-blue-700"
-                    >
-                      {createMutation.isPending ? (
-                        <>
-                          <svg className="mr-2 h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                          </svg>
-                          Salvando colaborador…
-                        </>
-                      ) : (
-                        <>
-                          <svg className="mr-2 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Salvar colaborador
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        )}
-        {/* Paginação simples: Anterior / Próximo */}
-        {!isLoading && totalEmployees > 0 && (
-          <div className="mt-6 flex items-center justify-between">
-            <div className="text-sm text-indigo-700">
-              Mostrando <strong>{page * pageSize + 1}</strong>–<strong>{Math.min((page + 1) * pageSize, totalEmployees)}</strong> de <strong>{totalEmployees}</strong>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={() => setPage((p) => Math.max(0, p - 1))}
-                disabled={page === 0 || employeesQuery.isFetching}
-                variant="outline"
-                className="rounded-xl"
-              >
-                Anterior
-              </Button>
-
-              <span className="text-sm text-indigo-600">Página {page + 1} de {Math.max(1, Math.ceil(totalEmployees / pageSize))}</span>
-
-              <Button
-                onClick={() => setPage((p) => p + 1)}
-                disabled={(page + 1) * pageSize >= totalEmployees || employeesQuery.isFetching}
-                variant="outline"
-                className="rounded-xl"
-              >
-                Próximo
-              </Button>
-            </div>
-          </div>
-        )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </SensitiveSection>
       </main>
-    </div>
+
+      {/* --- Add Employee Modal --- */}
+      <AnimatePresence>
+        {
+          isAddModalOpen && (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={handleCloseAddModal}
+                className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40"
+              />
+              <motion.div
+                variants={modalVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+              >
+                <div className="bg-white w-full max-w-lg rounded-[2rem] shadow-2xl pointer-events-auto overflow-hidden">
+                  <div className="p-8">
+                    <div className="flex items-center justify-between mb-8">
+                      <div>
+                        <h2 className="text-2xl font-bold text-slate-900">Novo Colaborador</h2>
+                        <p className="text-slate-500 text-sm">Preencha os dados para adicionar à equipe.</p>
+                      </div>
+                      <button
+                        onClick={handleCloseAddModal}
+                        className="p-2 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                      >
+                        <X className="w-6 h-6" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleAddEmployee} className="space-y-5">
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-700 ml-1">Nome Completo</label>
+                        <div className="relative">
+                          <Users className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                          <Input
+                            placeholder="Ex: Ana Silva"
+                            value={newEmployee.name}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
+                            className="pl-12 h-12 rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/20"
+                            required
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-5">
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-700 ml-1">Cargo</label>
+                          <div className="relative">
+                            <Briefcase className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <Input
+                              placeholder="Ex: Vendedor"
+                              value={newEmployee.position}
+                              onChange={(e) => setNewEmployee({ ...newEmployee, position: e.target.value })}
+                              className="pl-12 h-12 rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/20"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-semibold text-slate-700 ml-1">Telefone</label>
+                          <div className="relative">
+                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                            <Input
+                              placeholder="(00) 00000-0000"
+                              value={newEmployee.phone}
+                              onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
+                              className="pl-12 h-12 rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/20"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <label className="text-sm font-semibold text-slate-700 ml-1">E-mail</label>
+                        <div className="relative">
+                          <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                          <Input
+                            type="email"
+                            placeholder="ana@empresa.com"
+                            value={newEmployee.email}
+                            onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
+                            className="pl-12 h-12 rounded-xl border-slate-200 focus:border-indigo-500 focus:ring-indigo-500/20"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="pt-4">
+                        <Button
+                          type="submit"
+                          disabled={createMutation.isPending}
+                          className="w-full h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/40 transition-all"
+                        >
+                          {createMutation.isPending ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                              Salvando...
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <UserPlus className="w-5 h-5" />
+                              Cadastrar Colaborador
+                            </span>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                  <div className="bg-slate-50 p-4 text-center text-xs text-slate-400 border-t border-slate-100">
+                    Pressione ESC para cancelar
+                  </div>
+                </div>
+              </motion.div>
+            </>
+          )
+        }
+      </AnimatePresence >
+    </div >
   );
 }

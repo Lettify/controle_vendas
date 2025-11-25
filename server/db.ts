@@ -1,12 +1,12 @@
 import { eq, and, gte, lte, desc, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
-import { 
-  InsertUser, 
-  users, 
-  InsertEmployee, 
-  employees, 
-  InsertDailySale, 
+import {
+  InsertUser,
+  users,
+  InsertEmployee,
+  employees,
+  InsertDailySale,
   dailySales,
   InsertAccessCode,
   accessCodes,
@@ -20,12 +20,12 @@ let _client: ReturnType<typeof postgres> | null = null;
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
-      _client = postgres(process.env.DATABASE_URL, { 
+      _client = postgres(process.env.DATABASE_URL, {
         max: 1, // Reduzido para serverless
         idle_timeout: 20, // Fecha conexões ociosas após 20s
         connect_timeout: 10, // Timeout de conexão de 10s
         prepare: false, // Desabilita prepared statements (requerido para serverless)
-        onnotice: () => {} // Silencia avisos do Supabase
+        onnotice: () => { } // Silencia avisos do Supabase
       });
       _db = drizzle(_client);
     } catch (error) {
@@ -307,8 +307,79 @@ export async function getEmployeesByCompany(
     totalCountQuery,
   ]);
 
+  // Se não houver funcionários, retorna logo
+  if (paginatedEmployees.length === 0) {
+    return {
+      employees: [],
+      total: totalCountResult[0]?.count ?? 0,
+    };
+  }
+
+  // Buscar estatísticas de vendas para os funcionários retornados
+  const employeeIds = paginatedEmployees.map(e => e.id);
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0];
+
+  // Query para total do mês
+  const monthSalesQuery = db
+    .select({
+      employeeId: dailySales.employeeId,
+      total: sql<number>`sum(${dailySales.amount})`.mapWith(Number),
+    })
+    .from(dailySales)
+    .where(
+      and(
+        sql`${dailySales.employeeId} IN ${employeeIds}`,
+        gte(dailySales.date, startOfMonth),
+        lte(dailySales.date, endOfMonth)
+      )
+    )
+    .groupBy(dailySales.employeeId);
+
+  // Query para última venda
+  // Nota: Drizzle/Postgres pode ser chato com "greatest-n-per-group", então vamos fazer uma query simples
+  // buscando as últimas vendas desses funcionários e processar no código ou usar distinct on se suportado.
+  // Para simplificar e garantir compatibilidade, vamos buscar a última venda de cada um.
+  // Uma abordagem eficiente é usar window functions, mas vamos pelo simples:
+  // Buscar todas as vendas recentes desses employees e pegar a primeira de cada.
+
+  // Alternativa: Fazer queries individuais em paralelo se forem poucos (limit é 12, então ok).
+  // Ou melhor: Buscar as últimas vendas ordenadas por data para esses IDs.
+  const lastSalesQuery = db
+    .select({
+      employeeId: dailySales.employeeId,
+      date: dailySales.date,
+      amount: dailySales.amount,
+    })
+    .from(dailySales)
+    .where(sql`${dailySales.employeeId} IN ${employeeIds}`)
+    .orderBy(desc(dailySales.date));
+
+  const [monthSales, allSales] = await Promise.all([
+    monthSalesQuery,
+    lastSalesQuery,
+  ]);
+
+  const monthSalesMap = new Map(monthSales.map(s => [s.employeeId, s.total]));
+
+  // Processar últimas vendas (pegar a primeira encontrada para cada ID, já que está ordenado DESC)
+  const lastSaleMap = new Map();
+  for (const sale of allSales) {
+    if (!lastSaleMap.has(sale.employeeId)) {
+      lastSaleMap.set(sale.employeeId, { date: sale.date, amount: sale.amount });
+    }
+  }
+
+  // Combinar dados
+  const employeesWithStats = paginatedEmployees.map(emp => ({
+    ...emp,
+    totalMonthSales: monthSalesMap.get(emp.id) ?? 0,
+    lastSale: lastSaleMap.get(emp.id) ?? null,
+  }));
+
   return {
-    employees: paginatedEmployees,
+    employees: employeesWithStats,
     total: totalCountResult[0]?.count ?? 0,
   };
 }
