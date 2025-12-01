@@ -32,6 +32,8 @@ import {
   createAuthorizedDevice,
   getAuthorizedDeviceByAccessCode,
   touchAuthorizedDevice,
+  createAuditLog,
+  getAuditLogs,
 } from "./db.js";
 import { getCsrfToken, CSRF_COOKIE } from "./_core/csrf.js";
 
@@ -230,7 +232,7 @@ export const appRouter = router({
         const token = jwt.sign(
           { userId, sessionVersion: user!.sessionVersion },
           env.JWT_SECRET,
-          { expiresIn: "7d" }
+          { expiresIn: "30d" }
         );
         ctx.logger.info({ userId }, '[LOGIN] Token JWT criado');
 
@@ -238,6 +240,17 @@ export const appRouter = router({
         ctx.logger.info({ cookieName: COOKIE_NAME, jwtToken: token }, '[LOGIN] Definindo cookie de sessão');
         ctx.res.cookie(COOKIE_NAME, token, cookieOptions);
         ctx.logger.info({ cookieName: COOKIE_NAME, cookieOptions }, '[LOGIN] Cookie de sessão definido');
+
+        // Audit Log
+        await createAuditLog({
+          id: uuidv4(),
+          userId: user!.id,
+          action: "LOGIN",
+          entityType: "USER",
+          entityId: user!.id,
+          ipAddress: ctx.req.ip,
+          details: JSON.stringify({ deviceId, deviceLabel }),
+        });
 
 
         // CSRF token já foi definido por getCsrfToken()
@@ -298,6 +311,17 @@ export const appRouter = router({
           isActive: true,
         });
 
+        // Audit Log
+        await createAuditLog({
+          id: uuidv4(),
+          userId: ctx.user.id,
+          action: "CREATE_ACCESS_CODE",
+          entityType: "ACCESS_CODE",
+          entityId: id,
+          ipAddress: ctx.req.ip,
+          details: JSON.stringify({ code, companyId: input.companyId }),
+        });
+
         return { id, code };
       }),
 
@@ -316,8 +340,18 @@ export const appRouter = router({
 
     delete: adminProcedure
       .input(z.object({ id: z.string() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         await deleteAccessCode(input.id);
+
+        await createAuditLog({
+          id: uuidv4(),
+          userId: ctx.user.id,
+          action: "DELETE_ACCESS_CODE",
+          entityType: "ACCESS_CODE",
+          entityId: input.id,
+          ipAddress: ctx.req.ip,
+        });
+
         return { success: true };
       }),
   }),
@@ -349,6 +383,16 @@ export const appRouter = router({
         });
 
         ctx.logger.info({ employeeId: id }, "Funcionário criado com sucesso.");
+
+        await createAuditLog({
+          id: uuidv4(),
+          userId: ctx.user.id,
+          action: "CREATE_EMPLOYEE",
+          entityType: "EMPLOYEE",
+          entityId: id,
+          ipAddress: ctx.req.ip,
+          details: JSON.stringify({ name: input.name, companyId: input.companyId }),
+        });
 
         return { id };
       }),
@@ -396,9 +440,20 @@ export const appRouter = router({
           position: z.string().optional(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const { id, ...updates } = input;
         await updateEmployee(id, updates);
+
+        await createAuditLog({
+          id: uuidv4(),
+          userId: ctx.user.id,
+          action: "UPDATE_EMPLOYEE",
+          entityType: "EMPLOYEE",
+          entityId: id,
+          ipAddress: ctx.req.ip,
+          details: JSON.stringify(updates),
+        });
+
         return { success: true };
       }),
 
@@ -418,8 +473,18 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         await deleteEmployee(input.id);
+
+        await createAuditLog({
+          id: uuidv4(),
+          userId: ctx.user.id,
+          action: "DELETE_EMPLOYEE",
+          entityType: "EMPLOYEE",
+          entityId: input.id,
+          ipAddress: ctx.req.ip,
+        });
+
         return { success: true };
       }),
   }),
@@ -435,7 +500,7 @@ export const appRouter = router({
           amount: z.number().positive(),
         })
       )
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         const id = uuidv4();
         await createDailySale({
           id,
@@ -444,6 +509,17 @@ export const appRouter = router({
           date: input.date,
           amount: input.amount.toString(),
         });
+
+        await createAuditLog({
+          id: uuidv4(),
+          userId: ctx.user.id,
+          action: "CREATE_SALE",
+          entityType: "SALE",
+          entityId: id,
+          ipAddress: ctx.req.ip,
+          details: JSON.stringify({ amount: input.amount, employeeId: input.employeeId }),
+        });
+
         return { id };
       }),
 
@@ -513,9 +589,42 @@ export const appRouter = router({
 
     delete: protectedProcedure
       .input(z.object({ id: z.string() }))
-      .mutation(async ({ input }) => {
+      .mutation(async ({ input, ctx }) => {
         await deleteDailySale(input.id);
+
+        await createAuditLog({
+          id: uuidv4(),
+          userId: ctx.user.id,
+          action: "DELETE_SALE",
+          entityType: "SALE",
+          entityId: input.id,
+          ipAddress: ctx.req.ip,
+        });
+
         return { success: true };
+      }),
+  }),
+
+  // Logs de auditoria (admin)
+  auditLogs: router({
+    list: adminProcedure
+      .input(
+        z.object({
+          limit: z.number().min(1).max(100).optional(),
+          offset: z.number().min(0).optional(),
+          userId: z.string().optional(),
+          action: z.string().optional(),
+        })
+      )
+      .query(async ({ input }) => {
+        const limit = input.limit ?? 20;
+        const offset = input.offset ?? 0;
+        return await getAuditLogs({
+          limit,
+          offset,
+          userId: input.userId,
+          action: input.action,
+        });
       }),
   }),
 });

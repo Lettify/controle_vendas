@@ -38,43 +38,53 @@ export default function Navbar() {
 
   const navItems = useMemo(
     () => [
-    {
-      path: "/",
-      label: "Home",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-        </svg>
-      ),
-    },
-    {
-      path: "/employees",
-      label: "Funcionários",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
-        </svg>
-      ),
-    },
-    {
-      path: "/sales",
-      label: "Vendas",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      ),
-    },
-    {
-      path: "/statistics",
-      label: "Estatísticas",
-      icon: (
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-        </svg>
-      ),
-    },
-  ],
+      {
+        path: "/",
+        label: "Home",
+        icon: (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+          </svg>
+        ),
+      },
+      {
+        path: "/employees",
+        label: "Funcionários",
+        icon: (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+          </svg>
+        ),
+      },
+      {
+        path: "/sales",
+        label: "Vendas",
+        icon: (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+      },
+      {
+        path: "/statistics",
+        label: "Estatísticas",
+        icon: (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+        ),
+      },
+      {
+        path: "/admin/audit-logs",
+        label: "Logs",
+        adminOnly: true,
+        icon: (
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 011.414.586l4 4a1 1 0 01.586 1.414V19a2 2 0 01-2 2z" />
+          </svg>
+        ),
+      },
+    ],
     [],
   );
 
@@ -222,45 +232,44 @@ export default function Navbar() {
               }}
             />
           )}
-          {navItems.map((item, index) => {
-            const active = isActive(item.path);
-            return (
-              <button
-                key={item.path}
-                ref={(element) => {
-                  tabRefs.current[index] = element;
-                }}
-                type="button"
-                onClick={() => navigate(item.path)}
-                className={`group relative flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${
-                  active
+          {navItems
+            .filter(item => !item.adminOnly || user?.role === 'admin')
+            .map((item, index) => {
+              const active = isActive(item.path);
+              return (
+                <button
+                  key={item.path}
+                  ref={(element) => {
+                    tabRefs.current[index] = element;
+                  }}
+                  type="button"
+                  onClick={() => navigate(item.path)}
+                  className={`group relative flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition ${active
                     ? "bg-emerald-500 text-white shadow-md shadow-emerald-500/40"
                     : "text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
-                }`}
-                aria-current={active ? "page" : undefined}
-              >
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] transition ${
-                    active
+                    }`}
+                  aria-current={active ? "page" : undefined}
+                >
+                  <span
+                    className={`flex h-5 w-5 items-center justify-center rounded-full border text-[11px] transition ${active
                       ? "border-white/40 bg-white/20"
                       : "border-emerald-200 bg-emerald-50 text-emerald-500 group-hover:border-emerald-300"
-                  }`}
-                >
-                  {item.icon}
-                </span>
-                {item.label}
-                {active && (
-                  <span className="absolute -bottom-1 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/70" />
-                )}
-                <span
-                  className={`absolute inset-0 rounded-full opacity-0 transition duration-500 ease-out group-hover:opacity-100 ${
-                    active ? "bg-white/10" : "bg-emerald-100/40"
-                  }`}
-                  style={{ zIndex: -1 }}
-                />
-              </button>
-            );
-          })}
+                      }`}
+                  >
+                    {item.icon}
+                  </span>
+                  {item.label}
+                  {active && (
+                    <span className="absolute -bottom-1 left-1/2 h-1 w-10 -translate-x-1/2 rounded-full bg-white/70" />
+                  )}
+                  <span
+                    className={`absolute inset-0 rounded-full opacity-0 transition duration-500 ease-out group-hover:opacity-100 ${active ? "bg-white/10" : "bg-emerald-100/40"
+                      }`}
+                    style={{ zIndex: -1 }}
+                  />
+                </button>
+              );
+            })}
           <span className="pointer-events-none absolute bottom-0 left-0 right-0 top-0 -z-10" />
         </div>
       </nav>
@@ -300,33 +309,34 @@ export default function Navbar() {
               </div>
 
               <div className="grid gap-2">
-                {navItems.map((item) => {
-                  const active = isActive(item.path);
-                  return (
-                    <button
-                      key={item.path}
-                      onClick={() => {
-                        navigate(item.path);
-                        setMobileMenuOpen(false);
-                      }}
-                      className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-base font-semibold transition ${
-                        active
+                {navItems
+                  .filter(item => !item.adminOnly || user?.role === 'admin')
+                  .map((item) => {
+                    const active = isActive(item.path);
+                    return (
+                      <button
+                        key={item.path}
+                        onClick={() => {
+                          navigate(item.path);
+                          setMobileMenuOpen(false);
+                        }}
+                        className={`flex items-center justify-between rounded-2xl border px-4 py-3 text-base font-semibold transition ${active
                           ? "border-emerald-200 bg-emerald-50 text-emerald-700 shadow"
                           : "border-transparent bg-slate-50 text-slate-600 hover:border-emerald-100 hover:bg-emerald-50/70 hover:text-emerald-700"
-                      }`}
-                    >
-                      <span className="flex items-center gap-3">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-emerald-500 shadow-inner">
-                          {item.icon}
+                          }`}
+                      >
+                        <span className="flex items-center gap-3">
+                          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-emerald-500 shadow-inner">
+                            {item.icon}
+                          </span>
+                          {item.label}
                         </span>
-                        {item.label}
-                      </span>
-                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                    </button>
-                  );
-                })}
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    );
+                  })}
               </div>
             </div>
           </div>

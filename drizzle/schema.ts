@@ -101,3 +101,20 @@ export const dailySales = pgTable("daily_sales", {
 
 export type DailySale = typeof dailySales.$inferSelect;
 export type InsertDailySale = typeof dailySales.$inferInsert;
+
+/**
+ * Tabela de logs de auditoria
+ */
+export const auditLogs = pgTable("audit_logs", {
+  id: varchar("id", { length: 64 }).primaryKey(),
+  userId: varchar("user_id", { length: 64 }).notNull(),
+  action: varchar("action", { length: 50 }).notNull(),
+  entityId: varchar("entity_id", { length: 64 }),
+  entityType: varchar("entity_type", { length: 50 }),
+  details: text("details"), // JSON stringified
+  ipAddress: varchar("ip_address", { length: 45 }),
+  createdAt: timestamp("created_at", { mode: 'date', withTimezone: true }).defaultNow().notNull(),
+});
+
+export type AuditLog = typeof auditLogs.$inferSelect;
+export type InsertAuditLog = typeof auditLogs.$inferInsert;

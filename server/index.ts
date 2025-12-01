@@ -10,18 +10,42 @@ import pinoHttp from "pino-http";
 import logger from "./_core/logger";
 import { randomUUID } from "crypto";
 import rateLimit from 'express-rate-limit';
+import helmet from "helmet";
 
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutos
   max: 100, // Limita cada IP a 100 requisições por janela
   standardHeaders: true, // Retorna informações do limite nos cabeçalhos `RateLimit-*`
   legacyHeaders: false, // Desabilita os cabeçalhos `X-RateLimit-*`
+  skip: (req) => req.path.startsWith("/trpc/sales.create"),
+  handler: (req, res, _next, options) => {
+    const retryAfter = Math.ceil((options.windowMs ?? 60_000) / 1000);
+    res.status(options.statusCode ?? 429).json({
+      error: {
+        code: -32004,
+        message: "Excesso de requisições. Tente novamente em instantes.",
+        data: {
+          code: "TOO_MANY_REQUESTS",
+          httpStatus: options.statusCode ?? 429,
+          path: req.originalUrl,
+          retryAfter,
+        },
+      },
+    });
+  },
 });
 
 const app = express();
 
 // Aplica o rate limiter a todas as requisições
 app.use(limiter);
+
+// Security Headers
+app.use(
+  helmet({
+    contentSecurityPolicy: false, // Desabilitado para evitar conflitos com o frontend em dev (Vite)
+  })
+);
 
 // Habilita detecção correta de IP atrás de proxies (útil em produção)
 app.set("trust proxy", 1);

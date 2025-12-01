@@ -29,6 +29,10 @@ const monthNames = [
   'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
 ];
 
+const monthShortNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+const weekdayShortNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const weekdayLongNames = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+
 type EmployeeEntity = EmployeeRecord;
 type CompanySale = DailySaleRecord;
 type CompanySales = CompanySale[];
@@ -111,6 +115,12 @@ export default function Statistics() {
     endDate,
   });
 
+  const annualSalesQuery = trpc.sales.getByCompany.useQuery({
+    companyId: COMPANY_ID,
+    startDate: `${selectedYear}-01-01`,
+    endDate: `${selectedYear}-12-31`,
+  });
+
   const dailySalesQuery = trpc.sales.getByCompany.useQuery(
     {
       companyId: COMPANY_ID,
@@ -125,6 +135,7 @@ export default function Statistics() {
   const employeesData: EmployeeEntity[] = (employeesQuery.data as EmployeeEntity[] | undefined) ?? [];
   const monthlySales: CompanySales = (salesQuery.data as CompanySales | undefined) ?? [];
   const dailySalesData: CompanySales = (dailySalesQuery.data as CompanySales | undefined) ?? [];
+  const annualSalesData: CompanySales = (annualSalesQuery.data as CompanySales | undefined) ?? [];
 
   // Restaura filtros quando acessamos um link compartilhado
   useEffect(() => {
@@ -325,28 +336,87 @@ export default function Statistics() {
 
   const topPerformerShare = topPerformer && monthlyTotal > 0 ? (topPerformer.total / monthlyTotal) * 100 : 0;
 
-  const topEmployeesChartData = useMemo(() => {
-    const ranked = [...employeeStats]
-      .filter((item) => item.total > 0)
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 6);
+  const weeklyPatternData = useMemo(() => {
+    const totals = Array(7).fill(0);
+    const counts = Array(7).fill(0);
 
-    return ranked.map((item) => {
-      const firstName = item.employee.name?.split(" ")[0] ?? item.employee.name;
-      const totalValue = Number(item.total);
-      const share = monthlyTotal > 0 ? (totalValue / monthlyTotal) * 100 : 0;
+    for (const sale of monthlySales) {
+      if (!sale.date) continue;
+      const amount = parseFloat(String(sale.amount ?? 0));
+      if (Number.isNaN(amount)) continue;
+      const dayIndex = new Date(sale.date).getDay();
+      totals[dayIndex] += amount;
+      counts[dayIndex] += 1;
+    }
 
-      return {
-        name: firstName,
-        fullName: item.employee.name,
-        total: totalValue,
-        salesCount: item.salesCount,
-        share,
-      };
-    });
-  }, [employeeStats, monthlyTotal]);
+    return weekdayShortNames.map((label, index) => ({
+      dayIndex: index,
+      label,
+      fullLabel: weekdayLongNames[index],
+      total: totals[index],
+      salesCount: counts[index],
+      average: counts[index] > 0 ? totals[index] / counts[index] : 0,
+    }));
+  }, [monthlySales]);
 
-  const hasTopEmployeesData = topEmployeesChartData.length > 0;
+  const hasWeeklyData = weeklyPatternData.some((item) => item.salesCount > 0);
+  const weeklyTotalValue = useMemo(
+    () => weeklyPatternData.reduce((sum, item) => sum + item.total, 0),
+    [weeklyPatternData]
+  );
+  const weeklyVolume = useMemo(
+    () => weeklyPatternData.reduce((sum, item) => sum + item.salesCount, 0),
+    [weeklyPatternData]
+  );
+  const weeklyAverageTicket = weeklyVolume > 0 ? weeklyTotalValue / weeklyVolume : 0;
+  const weeklyAverageDay = useMemo(() => {
+    const activeDays = weeklyPatternData.filter((item) => item.salesCount > 0);
+    if (activeDays.length === 0) return 0;
+    return weeklyTotalValue / activeDays.length;
+  }, [weeklyPatternData, weeklyTotalValue]);
+  const weeklyActiveDays = useMemo(
+    () => weeklyPatternData.filter((item) => item.salesCount > 0).length,
+    [weeklyPatternData]
+  );
+
+  const bestWeekday = useMemo(() => {
+    const activeDays = weeklyPatternData.filter((item) => item.salesCount > 0);
+    if (activeDays.length === 0) return null;
+    return activeDays.reduce((acc, item) => (item.total > acc.total ? item : acc), activeDays[0]);
+  }, [weeklyPatternData]);
+
+  const quietWeekday = useMemo(() => {
+    const activeDays = weeklyPatternData.filter((item) => item.salesCount > 0);
+    if (activeDays.length === 0) return null;
+    return activeDays.reduce((acc, item) => (item.total < acc.total ? item : acc), activeDays[0]);
+  }, [weeklyPatternData]);
+
+  const annualTrendData = useMemo(() => {
+    const totalsByMonth = Array(12).fill(0);
+
+    for (const sale of annualSalesData) {
+      if (!sale.date) continue;
+      const amount = parseFloat(String(sale.amount ?? 0));
+      if (Number.isNaN(amount)) continue;
+      const monthIndex = new Date(sale.date).getMonth();
+      totalsByMonth[monthIndex] += amount;
+    }
+
+    return totalsByMonth.map((total, index) => ({
+      month: monthNames[index],
+      label: monthShortNames[index],
+      total,
+    }));
+  }, [annualSalesData]);
+
+  const hasAnnualTrend = annualTrendData.some((item) => item.total > 0);
+  const annualTotal = annualTrendData.reduce((sum, item) => sum + item.total, 0);
+  const annualActiveMonths = annualTrendData.filter((item) => item.total > 0).length;
+  const annualAverageMonthly = annualActiveMonths > 0 ? annualTotal / annualActiveMonths : 0;
+  const bestAnnualMonth = useMemo(() => {
+    if (!hasAnnualTrend) return null;
+    return annualTrendData.reduce((acc, item) => (item.total > acc.total ? item : acc), annualTrendData[0]);
+  }, [annualTrendData, hasAnnualTrend]);
 
   const renderDailyTooltip = ({ active, payload, label }: TooltipContentProps<ValueType, NameType>) => {
     const point = payload?.[0];
@@ -378,26 +448,49 @@ export default function Statistics() {
     );
   };
 
-  const renderTopEmployeesTooltip = ({ active, payload }: TooltipContentProps<ValueType, NameType>) => {
+  const renderWeeklyTooltip = ({ active, payload }: TooltipContentProps<ValueType, NameType>) => {
     const point = payload?.[0];
     if (!active || !point) return null;
-    const item = point.payload as (typeof topEmployeesChartData)[number] | undefined;
+    const item = point.payload as (typeof weeklyPatternData)[number] | undefined;
     if (!item) return null;
 
     return (
       <div className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs shadow-lg">
-        <p className="text-sm font-semibold text-gray-700">{item.fullName}</p>
+        <p className="text-sm font-semibold text-gray-700">{item.fullLabel}</p>
         <p className="mt-1 text-gray-600">
           Total:
-          <SensitiveValue
-            className="font-semibold text-indigo-600"
-            containerClassName="ml-1"
-          >
+          <SensitiveValue className="font-semibold text-indigo-600" containerClassName="ml-1">
             {formatCurrency(item.total)}
           </SensitiveValue>
         </p>
         <p className="text-gray-500">Vendas: {item.salesCount}</p>
-        <p className="text-gray-500">Participação: {item.share.toFixed(1)}%</p>
+        {item.salesCount > 0 && (
+          <p className="text-gray-500">
+            Ticket médio:
+            <SensitiveValue className="font-semibold text-gray-600" containerClassName="ml-1">
+              {formatCurrency(item.average)}
+            </SensitiveValue>
+          </p>
+        )}
+      </div>
+    );
+  };
+
+  const renderAnnualTooltip = ({ active, payload }: TooltipContentProps<ValueType, NameType>) => {
+    const point = payload?.[0];
+    if (!active || !point) return null;
+    const item = point.payload as (typeof annualTrendData)[number] | undefined;
+    if (!item) return null;
+
+    return (
+      <div className="rounded-xl border border-indigo-100 bg-white px-3 py-2 text-xs shadow-lg">
+        <p className="text-sm font-semibold text-gray-700">{item.month}</p>
+        <p className="mt-1 text-gray-600">
+          Total:
+          <SensitiveValue className="font-semibold text-indigo-600" containerClassName="ml-1">
+            {formatCurrency(item.total)}
+          </SensitiveValue>
+        </p>
       </div>
     );
   };
@@ -409,26 +502,26 @@ export default function Statistics() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-indigo-50 to-purple-50">
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-6 sm:py-8 lg:py-10 space-y-10">
+      <main className="max-w-7xl mx-auto px-12 py-12 space-y-12">
         <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-700 via-purple-600 to-indigo-700 text-white shadow-xl">
           <div className="absolute inset-0 opacity-40">
             <div className="absolute -top-24 -right-12 h-72 w-72 rounded-full bg-white/20 blur-3xl" />
             <div className="absolute top-32 -left-16 h-60 w-60 rounded-full bg-purple-300/30 blur-3xl" />
           </div>
-          <div className="relative px-6 py-8 sm:px-10 sm:py-12 lg:px-14 lg:py-16">
-            <div className="flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
+          <div className="relative px-14 py-16">
+            <div className="flex items-start justify-between gap-12">
               <div className="max-w-2xl space-y-5">
                 <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-1 text-sm font-semibold text-white/85 backdrop-blur-sm">
                   <span className="inline-block h-2 w-2 rounded-full bg-lime-300" />
                   {monthLabel} • Painel analítico
                 </span>
-                <h1 className="text-3xl font-black leading-tight tracking-tight sm:text-[2.65rem]">
+                <h1 className="text-[2.75rem] font-black leading-tight tracking-tight">
                   Insights do desempenho comercial da equipe
                 </h1>
-                <p className="text-sm sm:text-base text-white/85">
+                <p className="text-base text-white/85">
                   Explore tendências do mês, compare a performance da equipe e mergulhe em detalhes diários para tomar decisões rápidas e embasadas.
                 </p>
-                <div className="flex flex-wrap gap-3 text-xs font-semibold text-white/80">
+                <div className="flex gap-3 text-xs font-semibold text-white/80">
                   <span className="inline-flex items-center gap-2 rounded-full bg-white/15 px-3 py-1 backdrop-blur-sm">
                     <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7h2m4 0h12M3 12h18M3 17h12" />
@@ -454,7 +547,7 @@ export default function Statistics() {
                     </p>
                     <SensitiveSectionToggleButton className="border-white/40 bg-white/15 text-white/90 hover:bg-white/25" />
                   </div>
-                <p className="mt-3 text-3xl font-bold sm:text-4xl">
+                <p className="mt-3 text-4xl font-bold">
                   <SensitiveValue className="text-inherit font-inherit" containerClassName="w-full justify-start">
                     {formatCurrency(monthlyTotal)}
                   </SensitiveValue>
@@ -519,7 +612,7 @@ export default function Statistics() {
         {/* Filtros Modernos */}
         <Card className="border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
           <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm text-indigo-700">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center justify-between gap-4">
               <CardTitle className="flex items-center gap-3 text-lg font-semibold text-indigo-800">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -539,7 +632,7 @@ export default function Statistics() {
           </CardHeader>
 
           <CardContent className="pt-6 pb-6">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <div className="grid grid-cols-4 gap-4">
               {/* Seletor de Mês */}
               <div className="flex flex-col gap-2">
                 <label className="text-sm font-semibold text-indigo-900">Mês</label>
@@ -583,9 +676,9 @@ export default function Statistics() {
               </div>
 
               {/* Botões de navegação rápida */}
-              <div className="md:col-span-2 xl:col-span-2">
+              <div className="col-span-2">
                 <label className="text-sm font-semibold text-indigo-900">Atalhos de navegação</label>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
+                <div className="mt-3 flex items-center gap-3">
                   <button
                     onClick={() => {
                       if (selectedMonth === 1) {
@@ -641,31 +734,31 @@ export default function Statistics() {
         </Card>
 
         {/* Cards de Resumo */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 sm:gap-6 mb-8">
+        <div className="grid grid-cols-5 gap-6 mb-12">
           {/* Total Geral */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-emerald-400 to-teal-500 text-white overflow-hidden relative">
+          <Card className="relative h-full overflow-hidden border-0 bg-gradient-to-br from-emerald-400 to-teal-500 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-4 sm:p-6 relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <CardContent className="relative z-10 flex h-full flex-col gap-5 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm shadow-lg">
+                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                 </div>
               </div>
-              <p className="text-emerald-50 text-xs font-bold mb-1 uppercase tracking-wide">Total Geral</p>
-              <p className="text-xl sm:text-2xl font-black mb-1 break-words">
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-50">Total Geral</p>
                 <SensitiveValue
-                  className="text-inherit font-inherit"
+                  className="text-2xl font-black"
                   containerClassName="w-full justify-start"
                 >
                   {formatCurrency(totalQuery.data || 0)}
                 </SensitiveValue>
-              </p>
-              <p className="text-emerald-50 text-xs font-semibold flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z"/>
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd"/>
+              </div>
+              <p className="flex items-center gap-1 text-xs font-semibold text-emerald-50">
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
                 </svg>
                 Receita do período
               </p>
@@ -673,28 +766,30 @@ export default function Statistics() {
           </Card>
 
           {/* Total de Comissões */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-purple-500 to-violet-600 text-white overflow-hidden relative">
+          <Card className="relative h-full overflow-hidden border-0 bg-gradient-to-br from-purple-500 to-violet-600 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-4 sm:p-6 relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <CardContent className="relative z-10 flex h-full flex-col gap-5 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm shadow-lg">
+                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
               </div>
-              <p className="text-purple-50 text-xs font-bold mb-1 uppercase tracking-wide">Comissões</p>
-              <SensitiveValue
-                className="text-xl sm:text-2xl font-black"
-                containerClassName="mb-1 w-full justify-start break-words"
-                hideLabel="Ocultar comissão"
-                revealLabel="Mostrar"
-              >
-                {formatCurrency(totalCommissions)}
-              </SensitiveValue>
-              <p className="text-purple-50 text-xs font-semibold flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-purple-50">Comissões</p>
+                <SensitiveValue
+                  className="text-2xl font-black"
+                  containerClassName="w-full justify-start"
+                  hideLabel="Ocultar comissão"
+                  revealLabel="Mostrar"
+                >
+                  {formatCurrency(totalCommissions)}
+                </SensitiveValue>
+              </div>
+              <p className="flex items-center gap-1 text-xs font-semibold text-purple-50">
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 3a1 1 0 000 2v8a2 2 0 002 2h2.586l-1.293 1.293a1 1 0 101.414 1.414L10 15.414l2.293 2.293a1 1 0 001.414-1.414L12.414 15H15a2 2 0 002-2V5a1 1 0 100-2H3zm11.707 4.707a1 1 0 00-1.414-1.414L10 9.586 8.707 8.293a1 1 0 00-1.414 0l-2 2a1 1 0 101.414 1.414L8 10.414l1.293 1.293a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                 </svg>
                 Total a pagar
               </p>
@@ -702,21 +797,23 @@ export default function Statistics() {
           </Card>
 
           {/* Total de Vendas */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-blue-400 to-indigo-500 text-white overflow-hidden relative">
+          <Card className="relative h-full overflow-hidden border-0 bg-gradient-to-br from-blue-400 to-indigo-500 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-4 sm:p-6 relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <CardContent className="relative z-10 flex h-full flex-col gap-5 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm shadow-lg">
+                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
                 </div>
               </div>
-              <p className="text-blue-50 text-xs font-bold mb-1 uppercase tracking-wide">Vendas</p>
-              <p className="text-xl sm:text-2xl font-black mb-1">{totalSales}</p>
-              <p className="text-blue-50 text-xs font-semibold flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z"/>
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-blue-50">Vendas</p>
+                <p className="text-2xl font-black">{totalSales}</p>
+              </div>
+              <p className="flex items-center gap-1 text-xs font-semibold text-blue-50">
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
                 </svg>
                 Transações realizadas
               </p>
@@ -724,21 +821,23 @@ export default function Statistics() {
           </Card>
 
           {/* Funcionários Ativos */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-purple-400 to-pink-500 text-white overflow-hidden relative">
+          <Card className="relative h-full overflow-hidden border-0 bg-gradient-to-br from-purple-400 to-pink-500 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-4 sm:p-6 relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <CardContent className="relative z-10 flex h-full flex-col gap-5 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm shadow-lg">
+                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
                 </div>
               </div>
-              <p className="text-purple-50 text-xs font-bold mb-1 uppercase tracking-wide">Funcionários</p>
-              <p className="text-xl sm:text-2xl font-black mb-1">{activeEmployees}</p>
-              <p className="text-purple-50 text-xs font-semibold flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/>
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-purple-50">Funcionários</p>
+                <p className="text-2xl font-black">{activeEmployees}</p>
+              </div>
+              <p className="flex items-center gap-1 text-xs font-semibold text-purple-50">
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z" />
                 </svg>
                 Com vendas ativas
               </p>
@@ -746,28 +845,28 @@ export default function Statistics() {
           </Card>
 
           {/* Ticket Médio por Funcionário */}
-          <Card className="border-0 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-1 bg-gradient-to-br from-orange-400 to-amber-500 text-white overflow-hidden relative">
+          <Card className="relative h-full overflow-hidden border-0 bg-gradient-to-br from-orange-400 to-amber-500 text-white shadow-lg transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
             <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16"></div>
-            <CardContent className="p-4 sm:p-6 relative z-10">
-              <div className="flex items-center justify-between mb-3">
-                <div className="w-12 h-12 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <CardContent className="relative z-10 flex h-full flex-col gap-5 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/25 backdrop-blur-sm shadow-lg">
+                  <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
                   </svg>
                 </div>
               </div>
-              <p className="text-orange-50 text-xs font-bold mb-1 uppercase tracking-wide">Média/Funcionário</p>
-              <p className="text-xl sm:text-2xl font-black mb-1 break-words">
+              <div className="space-y-2">
+                <p className="text-xs font-bold uppercase tracking-wide text-orange-50">Média/Funcionário</p>
                 <SensitiveValue
-                  className="text-inherit font-inherit"
+                  className="text-2xl font-black"
                   containerClassName="w-full justify-start"
                 >
                   {formatCurrency(averagePerEmployee)}
                 </SensitiveValue>
-              </p>
-              <p className="text-orange-50 text-xs font-semibold flex items-center gap-1">
-                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd"/>
+              </div>
+              <p className="flex items-center gap-1 text-xs font-semibold text-orange-50">
+                <svg className="h-3.5 w-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
                 </svg>
                 Performance média
               </p>
@@ -775,11 +874,11 @@ export default function Statistics() {
           </Card>
         </div>
 
-        <section className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+        <section className="flex flex-col gap-6">
           <SensitiveSection>
-            <Card className="xl:col-span-2 border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
+            <Card className="border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
             <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <CardTitle className="flex items-center gap-3 text-indigo-800">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -788,7 +887,7 @@ export default function Statistics() {
                     </div>
                     Evolução diária das vendas
                   </CardTitle>
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -849,7 +948,7 @@ export default function Statistics() {
                 )}
               </div>
 
-              <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="mt-6 grid grid-cols-3 gap-3">
                 <div className="rounded-xl border border-indigo-100 bg-indigo-50/60 px-4 py-3">
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-500">Média diária</p>
                   <p className="mt-1 text-sm font-bold text-indigo-800">
@@ -886,38 +985,221 @@ export default function Statistics() {
           <SensitiveSection>
             <Card className="border border-indigo-100 bg-white/90 backdrop-blur rounded-3xl shadow-lg">
               <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <CardTitle className="flex items-center gap-3 text-indigo-800">
                     <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
                       <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 3h2m-1 0v18m-7-4h14M5 11h14M5 7h14" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
                       </svg>
                     </div>
-                    Ranking por faturamento
+                    Padrão semanal de vendas
                   </CardTitle>
-                  <div className="flex items-center gap-2 self-start sm:self-auto">
+                  <div className="flex items-center gap-2">
                     <span className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
                       <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                       </svg>
-                      Top 6 do mês
+                      {monthLabel}
                     </span>
                     <SensitiveSectionToggleButton className="border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-50" />
                   </div>
                 </div>
               </CardHeader>
+              <CardContent className="pt-6">
+                <div className="flex flex-col gap-7">
+                  <div className="h-[320px]">
+                    {hasWeeklyData ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart
+                          data={weeklyPatternData}
+                          margin={{ left: -10, right: 10, top: 10, bottom: 0 }}
+                          barSize={32}
+                        >
+                          <CartesianGrid vertical={false} stroke="#e0e7ff" strokeDasharray="4 6" />
+                          <XAxis
+                            dataKey="label"
+                            tickLine={false}
+                            axisLine={false}
+                            tick={{ fill: '#4338ca', fontSize: 12, fontWeight: 600 }}
+                          />
+                          <YAxis
+                            tickFormatter={(value) => compactCurrencyFormatter.format(Number(value))}
+                            tickLine={false}
+                            axisLine={false}
+                            tick={{ fill: '#4c1d95', fontSize: 12 }}
+                          />
+                          <Tooltip content={renderWeeklyTooltip} cursor={{ fill: '#eef2ff' }} />
+                          <Bar dataKey="total" radius={[10, 10, 6, 6]} fill="#a855f7" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-100 bg-slate-50/60 text-center">
+                        <div className="rounded-full bg-indigo-100 p-3 text-indigo-600">
+                          <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h11M9 21V3m12 13h-4m0 0l2-2m-2 2l2 2" />
+                          </svg>
+                        </div>
+                        <p className="mt-3 text-sm font-semibold text-indigo-700">Sem dados semanais suficientes</p>
+                        <p className="text-xs text-indigo-500">Registre vendas para enxergar o comportamento por dia da semana.</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-5">
+                    <div className="flex flex-col gap-5 rounded-2xl border border-emerald-100 bg-white p-7 shadow-sm shadow-emerald-100/60">
+                      <header className="flex flex-col gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-600">Dia mais forte</p>
+                      {bestWeekday ? (
+                        <p className="text-base font-semibold text-emerald-900">{bestWeekday.fullLabel}</p>
+                      ) : (
+                        <p className="text-sm font-semibold text-emerald-700">Sem dados no período</p>
+                      )}
+                    </header>
+
+                      {bestWeekday && (
+                        <div className="flex flex-col gap-3">
+                        <SensitiveValue
+                          className="text-3xl font-black leading-tight tracking-tight text-emerald-700"
+                          containerClassName="w-full justify-start"
+                          allowWrap
+                          fullWidth
+                        >
+                          {formatCurrency(bestWeekday.total)}
+                        </SensitiveValue>
+
+                          {averageDaily > 0 && (
+                            <section className="rounded-xl bg-emerald-50/70 px-4 py-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-500">Diferença vs. média</p>
+                              <SensitiveValue
+                                className="mt-1 text-base font-semibold text-emerald-700"
+                                containerClassName="w-full justify-start"
+                                allowWrap
+                                fullWidth
+                              >
+                                {formatCurrency(bestWeekday.total - averageDaily)}
+                              </SensitiveValue>
+                            </section>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-5 rounded-2xl border border-amber-100 bg-white p-7 shadow-sm shadow-amber-100/60">
+                      <header className="flex flex-col gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-600">Dia com menor movimento</p>
+                      {quietWeekday ? (
+                        <p className="text-base font-semibold text-amber-900">{quietWeekday.fullLabel}</p>
+                      ) : (
+                        <p className="text-sm font-semibold text-amber-700">Sem dados no período</p>
+                      )}
+                    </header>
+
+                      {quietWeekday && (
+                        <div className="flex flex-col gap-3">
+                        <SensitiveValue
+                          className="text-3xl font-black leading-tight tracking-tight text-amber-700"
+                          containerClassName="w-full justify-start"
+                          allowWrap
+                          fullWidth
+                        >
+                          {formatCurrency(quietWeekday.total)}
+                        </SensitiveValue>
+
+                          {averageDaily > 0 && (
+                            <section className="rounded-xl bg-amber-50 px-4 py-3">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-amber-500">Gap para a média</p>
+                              <SensitiveValue
+                                className="mt-1 text-base font-semibold text-amber-700"
+                                containerClassName="w-full justify-start"
+                                allowWrap
+                                fullWidth
+                              >
+                                {formatCurrency(averageDaily - quietWeekday.total)}
+                              </SensitiveValue>
+                            </section>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-5 rounded-2xl border border-indigo-100 bg-white p-7 shadow-sm shadow-indigo-100/60">
+                      <header className="flex flex-col gap-2">
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-indigo-600">Ticket médio semanal</p>
+                      {weeklyVolume > 0 ? (
+                        <p className="text-sm font-semibold text-indigo-900">
+                          {weeklyVolume} venda{weeklyVolume === 1 ? "" : "s"} em {weeklyActiveDays} dia{weeklyActiveDays === 1 ? "" : "s"}
+                        </p>
+                      ) : (
+                        <p className="text-sm font-semibold text-indigo-700">Sem dados no período</p>
+                      )}
+                    </header>
+
+                      {weeklyVolume > 0 && (
+                        <div className="flex flex-col gap-3">
+                        <SensitiveValue
+                          className="text-3xl font-black leading-tight tracking-tight text-indigo-700"
+                          containerClassName="w-full justify-start"
+                          allowWrap
+                          fullWidth
+                        >
+                          {formatCurrency(weeklyAverageTicket)}
+                        </SensitiveValue>
+
+                          <section className="rounded-xl bg-indigo-50 px-4 py-3">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-indigo-500">Média por dia ativo</p>
+                            <SensitiveValue
+                              className="mt-1 text-base font-semibold text-indigo-700"
+                              containerClassName="w-full justify-start"
+                              allowWrap
+                              fullWidth
+                            >
+                              {formatCurrency(weeklyAverageDay)}
+                            </SensitiveValue>
+                          </section>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </SensitiveSection>
+        </section>
+
+        <SensitiveSection>
+          <Card className="border border-indigo-100 bg-white/95 backdrop-blur rounded-3xl shadow-lg">
+            <CardHeader className="border-b border-indigo-100 bg-white/70 backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-3 text-indigo-800">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                    <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  Panorama anual de vendas
+                </CardTitle>
+                <div className="inline-flex items-center gap-2 rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                  <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {selectedYear}
+                </div>
+              </div>
+            </CardHeader>
             <CardContent className="pt-6">
               <div className="h-[320px]">
-                {hasTopEmployeesData ? (
+                {hasAnnualTrend ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <BarChart
-                      data={topEmployeesChartData}
-                      margin={{ left: -10, right: 10, top: 10, bottom: 0 }}
-                      barSize={32}
-                    >
-                      <CartesianGrid vertical={false} stroke="#e0e7ff" strokeDasharray="4 6" />
+                    <AreaChart data={annualTrendData} margin={{ left: -10, right: 0, top: 10, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="annualTrendGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.35} />
+                          <stop offset="95%" stopColor="#c4b5fd" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#e0e7ff" strokeDasharray="4 8" vertical={false} />
                       <XAxis
-                        dataKey="name"
+                        dataKey="label"
                         tickLine={false}
                         axisLine={false}
                         tick={{ fill: '#4338ca', fontSize: 12, fontWeight: 600 }}
@@ -928,68 +1210,78 @@ export default function Statistics() {
                         axisLine={false}
                         tick={{ fill: '#4c1d95', fontSize: 12 }}
                       />
-                      <Tooltip content={renderTopEmployeesTooltip} cursor={{ fill: '#eef2ff' }} />
-                      <Bar dataKey="total" radius={[10, 10, 6, 6]} fill="#6366f1" />
-                    </BarChart>
+                      <Tooltip content={renderAnnualTooltip} cursor={{ stroke: '#c4b5fd', strokeWidth: 1 }} />
+                      <Area
+                        type="monotone"
+                        dataKey="total"
+                        stroke="#7c3aed"
+                        strokeWidth={2.5}
+                        fill="url(#annualTrendGradient)"
+                        dot={{ r: 3, stroke: '#6d28d9', strokeWidth: 1 }}
+                        activeDot={{ r: 5, stroke: '#4c1d95', strokeWidth: 2 }}
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-100 bg-slate-50/60 text-center">
+                  <div className="flex h-full flex-col items-center justify-center rounded-2xl border border-dashed border-indigo-100 bg-indigo-50/60 text-center">
                     <div className="rounded-full bg-indigo-100 p-3 text-indigo-600">
                       <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                     </div>
-                    <p className="mt-3 text-sm font-semibold text-indigo-700">Nenhum colaborador com vendas</p>
-                    <p className="text-xs text-indigo-500">Assim que as vendas forem registradas, o ranking será atualizado automaticamente.</p>
+                    <p className="mt-3 text-sm font-semibold text-indigo-700">Sem histórico anual disponível</p>
+                    <p className="text-xs text-indigo-500">Registre vendas ao longo do ano para acompanhar a evolução mês a mês.</p>
                   </div>
                 )}
               </div>
 
-              {hasTopEmployeesData && (
-                <div className="mt-6 space-y-3">
-                  {topEmployeesChartData.slice(0, 3).map((item, index) => {
-                    const podiumStyles = [
-                      'bg-amber-200 text-amber-900',
-                      'bg-slate-200 text-slate-800',
-                      'bg-orange-200 text-orange-900',
-                    ];
-                    const badgeClass = podiumStyles[index] ?? 'bg-indigo-100 text-indigo-700';
-                    const shareWidth = `${Math.min(item.share, 100).toFixed(1)}%`;
-
-                    return (
-                      <div key={item.fullName} className="flex items-center gap-3">
-                        <span className={`inline-flex h-7 w-7 items-center justify-center rounded-full text-sm font-bold ${badgeClass}`}>
-                          {index + 1}
-                        </span>
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-slate-700">{item.fullName}</p>
-                          <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                            <SensitiveValue className="font-semibold text-slate-500" containerClassName="w-fit">
-                              {formatCurrency(item.total)}
-                            </SensitiveValue>
-                            <span>•</span>
-                            <span>{item.salesCount} venda{item.salesCount === 1 ? '' : 's'}</span>
-                          </div>
-                          <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-indigo-100">
-                            <div className="h-full rounded-full bg-indigo-500" style={{ width: shareWidth }} />
-                          </div>
-                        </div>
-                        <span className="text-xs font-semibold text-indigo-600">{item.share.toFixed(1)}%</span>
-                      </div>
-                    );
-                  })}
+                <div className="mt-6 grid grid-cols-3 gap-3">
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/70 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-indigo-500">Receita acumulada</p>
+                  {hasAnnualTrend ? (
+                    <SensitiveValue className="text-lg font-black text-indigo-700" containerClassName="w-full justify-start">
+                      {formatCurrency(annualTotal)}
+                    </SensitiveValue>
+                  ) : (
+                    <p className="text-sm font-semibold text-indigo-700">--</p>
+                  )}
                 </div>
-              )}
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-500">Melhor mês</p>
+                  {bestAnnualMonth ? (
+                    <>
+                      <p className="text-sm font-bold text-emerald-800">{bestAnnualMonth.month}</p>
+                      <SensitiveValue className="text-lg font-black text-emerald-700" containerClassName="w-full justify-start">
+                        {formatCurrency(bestAnnualMonth.total)}
+                      </SensitiveValue>
+                    </>
+                  ) : (
+                    <p className="text-sm font-semibold text-emerald-700">Aguardando dados</p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50/70 px-4 py-3">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">Média mensal ativa</p>
+                  {annualActiveMonths > 0 ? (
+                    <>
+                      <SensitiveValue className="text-lg font-black text-slate-700" containerClassName="w-full justify-start">
+                        {formatCurrency(annualAverageMonthly)}
+                      </SensitiveValue>
+                      <p className="text-xs text-slate-500">{annualActiveMonths} mês{annualActiveMonths === 1 ? '' : 'es'} com movimento</p>
+                    </>
+                  ) : (
+                    <p className="text-sm font-semibold text-slate-700">Sem vendas no ano</p>
+                  )}
+                </div>
+              </div>
             </CardContent>
-            </Card>
-          </SensitiveSection>
-        </section>
+          </Card>
+        </SensitiveSection>
 
         {/* Ranking de Funcionários */}
         <SensitiveSection>
           <Card className="border border-indigo-100 bg-white/95 backdrop-blur rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="border-b border-indigo-100 bg-white/75 backdrop-blur-sm text-indigo-800">
-            <div className="flex items-center justify-between flex-wrap gap-4">
+            <div className="flex items-center justify-between gap-6">
               <CardTitle className="flex items-center gap-3 text-indigo-800">
                 <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
                   <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1087,7 +1379,7 @@ export default function Statistics() {
 
           <CardContent className="p-6">
             {viewMode === 'cards' ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-3 gap-4">
                 {employeeStats.map((item, index) => (
                   <div
                     key={item.employee.id}
@@ -1271,7 +1563,7 @@ export default function Statistics() {
         <SensitiveSection>
           <Card className="mt-10 border border-rose-100 bg-white/95 backdrop-blur rounded-3xl shadow-xl overflow-hidden">
           <CardHeader className="border-b border-rose-100 bg-white/75 backdrop-blur-sm text-rose-600">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-6">
               <CardTitle className="flex items-center gap-3 text-rose-700">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
                   <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1286,7 +1578,7 @@ export default function Statistics() {
           
           <CardContent className="pt-6">
             {/* Seletor de Data */}
-            <div className="mb-6 flex flex-wrap items-end gap-4">
+            <div className="mb-6 flex items-end gap-6">
               <div className="flex-1 min-w-[250px]">
                 <label className="mb-2 block text-sm font-semibold text-rose-900">
                   Selecione uma Data para Visualizar o Relatório
@@ -1338,9 +1630,9 @@ export default function Statistics() {
                 {!dailySalesQuery.isLoading && dailyStats.length > 0 && (
                   <>
                     {/* Cards de Resumo do Dia */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-                      <div className="bg-gradient-to-br from-pink-50 to-rose-50 border-2 border-pink-200 rounded-xl p-4">
-                        <div className="flex items-center gap-3 mb-2">
+                    <div className="mb-6 grid grid-cols-4 gap-4">
+                      <div className="flex h-full flex-col gap-3 rounded-xl border-2 border-pink-200 bg-gradient-to-br from-pink-50 to-rose-50 p-4">
+                        <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-pink-500 rounded-lg flex items-center justify-center">
                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -1358,8 +1650,8 @@ export default function Statistics() {
                         </p>
                       </div>
 
-                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-4">
-                        <div className="flex items-center gap-3 mb-2">
+                      <div className="flex h-full flex-col gap-3 rounded-xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+                        <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -1372,8 +1664,8 @@ export default function Statistics() {
                         </p>
                       </div>
 
-                      <div className="bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-200 rounded-xl p-4">
-                        <div className="flex items-center gap-3 mb-2">
+                      <div className="flex h-full flex-col gap-3 rounded-xl border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-violet-50 p-4">
+                        <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-purple-500 rounded-lg flex items-center justify-center">
                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -1386,8 +1678,8 @@ export default function Statistics() {
                         </p>
                       </div>
 
-                      <div className="bg-gradient-to-br from-orange-50 to-amber-50 border-2 border-orange-200 rounded-xl p-4">
-                        <div className="flex items-center gap-3 mb-2">
+                      <div className="flex h-full flex-col gap-3 rounded-xl border-2 border-orange-200 bg-gradient-to-br from-orange-50 to-amber-50 p-4">
+                        <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-orange-500 rounded-lg flex items-center justify-center">
                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />

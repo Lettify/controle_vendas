@@ -35,7 +35,15 @@ const sharedRateLimiter = new RateLimiter({
   lockoutMs: 5 * 60_000,
 });
 
+const RATE_LIMIT_BYPASS_PATHS = new Set<string>([
+  "sales.create",
+]);
+
 const rateLimiterMiddleware = t.middleware(async ({ ctx, path, type, next }) => {
+  if (RATE_LIMIT_BYPASS_PATHS.has(path)) {
+    return next();
+  }
+
   const limiterKey = `${ctx.req.ip ?? "unknown"}:${type}:${path}`;
 
   try {

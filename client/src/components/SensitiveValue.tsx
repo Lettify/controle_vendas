@@ -10,6 +10,8 @@ interface SensitiveValueProps {
   initiallyVisible?: boolean;
   revealLabel?: string;
   hideLabel?: string;
+  allowWrap?: boolean;
+  fullWidth?: boolean;
 }
 
 interface SensitiveSectionContextValue {
@@ -110,6 +112,8 @@ export function SensitiveValue({
   initiallyVisible = false,
   revealLabel = "Mostrar",
   hideLabel = "Ocultar",
+  allowWrap = false,
+  fullWidth = false,
 }: SensitiveValueProps) {
   const section = useOptionalSensitiveSection();
   const [localVisible, setLocalVisible] = useState(initiallyVisible);
@@ -119,6 +123,12 @@ export function SensitiveValue({
   const toggleVisibility = section ? section.toggle : toggleLocalVisibility;
   const label = isVisible ? hideLabel : revealLabel;
 
+  const containerLayout = fullWidth
+    ? "flex w-full items-start justify-start"
+    : allowWrap
+      ? "inline-flex items-start"
+      : "inline-flex items-baseline";
+
   return (
     <button
       type="button"
@@ -127,7 +137,9 @@ export function SensitiveValue({
         toggleVisibility();
       }}
       className={cn(
-        "group inline-flex items-baseline rounded-sm bg-transparent p-0 m-0 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500/70 whitespace-nowrap",
+        "group rounded-sm bg-transparent p-0 m-0 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500/70",
+        containerLayout,
+        allowWrap ? "whitespace-normal break-words" : "whitespace-nowrap",
         containerClassName,
       )}
       aria-pressed={isVisible}
@@ -136,7 +148,8 @@ export function SensitiveValue({
     >
       <span
         className={cn(
-          "relative inline-block transition-all duration-200 leading-[1.2]",
+          "relative transition-all duration-200 leading-[1.2] text-left",
+          fullWidth ? "block w-full" : "inline-block",
           isVisible ? "blur-0 opacity-100" : "blur-lg opacity-85 select-none",
           className,
         )}

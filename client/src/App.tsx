@@ -17,6 +17,7 @@ const EmployeeDetails = lazy(() => import("./pages/EmployeeDetails"));
 const Sales = lazy(() => import("./pages/Sales"));
 const Statistics = lazy(() => import("./pages/Statistics"));
 const AdminAccessCodes = lazy(() => import("./pages/AdminAccessCodes"));
+const AuditLogs = lazy(() => import("./pages/AuditLogs"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 function RouteFallback() {
@@ -60,6 +61,7 @@ function ProtectedAppShell() {
             <Route path="/sales" component={Sales} />
             <Route path="/statistics" component={Statistics} />
             <Route path="/admin/access-codes" component={AdminAccessCodes} />
+            <Route path="/admin/audit-logs" component={AuditLogs} />
             <Route path="/" component={Home} />
             <Route component={NotFound} />
           </Switch>

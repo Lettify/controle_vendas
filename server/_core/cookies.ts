@@ -6,7 +6,7 @@ export function getSessionCookieOptions(req: Request) {
     httpOnly: true,
     secure: isProd ? true : req.protocol === "https",
     sameSite: "lax" as const,
-    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+    maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
     path: "/",
     // Removido 'domain' para compatibilidade máxima
   };

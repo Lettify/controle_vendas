@@ -12,6 +12,8 @@ import {
   accessCodes,
   InsertAuthorizedDevice,
   authorizedDevices,
+  InsertAuditLog,
+  auditLogs,
 } from "../drizzle/schema.js";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -537,4 +539,68 @@ export async function deleteDailySale(id: string): Promise<void> {
   if (!db) throw new Error("Database not available");
 
   await db.delete(dailySales).where(eq(dailySales.id, id));
+}
+
+// ============= AUDIT LOG FUNCTIONS =============
+
+export async function createAuditLog(log: InsertAuditLog): Promise<void> {
+  const db = await getDb();
+  if (!db) {
+    console.warn("[Database] Cannot create audit log: database not available");
+    return;
+  }
+
+  try {
+    await db.insert(auditLogs).values(log);
+  } catch (error) {
+    console.error("[Database] Failed to create audit log:", error);
+    // Não lançar erro para não interromper o fluxo principal
+  }
+}
+
+export async function getAuditLogs(options: {
+  limit: number;
+  offset: number;
+  userId?: string;
+  action?: string;
+}) {
+  const db = await getDb();
+  if (!db) return { logs: [], total: 0 };
+
+  const { limit, offset, userId, action } = options;
+  const conditions = [];
+
+  if (userId) conditions.push(eq(auditLogs.userId, userId));
+  if (action) conditions.push(eq(auditLogs.action, action));
+
+  const logsQuery = db
+    .select({
+      id: auditLogs.id,
+      userId: auditLogs.userId,
+      userName: users.name,
+      action: auditLogs.action,
+      entityType: auditLogs.entityType,
+      entityId: auditLogs.entityId,
+      details: auditLogs.details,
+      ipAddress: auditLogs.ipAddress,
+      createdAt: auditLogs.createdAt,
+    })
+    .from(auditLogs)
+    .leftJoin(users, eq(auditLogs.userId, users.id))
+    .where(and(...conditions))
+    .orderBy(desc(auditLogs.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const countQuery = db
+    .select({ count: sql<number>`count(*)`.mapWith(Number) })
+    .from(auditLogs)
+    .where(and(...conditions));
+
+  const [logs, total] = await Promise.all([logsQuery, countQuery]);
+
+  return {
+    logs,
+    total: total[0]?.count ?? 0,
+  };
 }
