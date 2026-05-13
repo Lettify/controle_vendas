@@ -238,6 +238,9 @@ Para dúvidas ou problemas, consulte:
 - Documentação do Drizzle: https://orm.drizzle.team
 - Documentação do React: https://react.dev
 
+## Desenvolvedores
+Este projeto foi idealizado por mim e projetado pela LLM **Manus AI** e posteriormente foi utilizado o GitHub Copilot integrado ao VSCode usando o LLM GPT Codex para refatorações e desenvolvimento de melhorias e correções para a plataforma.
+
 ## Licença
 
 ISC
